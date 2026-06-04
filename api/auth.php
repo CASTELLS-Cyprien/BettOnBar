@@ -21,6 +21,18 @@ switch ($action) {
         if ($method !== 'GET') jsonError('Méthode non autorisée', 405);
         handleCheck();
         break;
+    case 'change_password':
+        if ($method !== 'POST') jsonError('Méthode non autorisée', 405);
+        handleChangePassword();
+        break;
+    case 'change_username':
+        if ($method !== 'POST') jsonError('Méthode non autorisée', 405);
+        handleChangeUsername();
+        break;
+    case 'delete_account':
+        if ($method !== 'POST') jsonError('Méthode non autorisée', 405);
+        handleDeleteAccount();
+        break;
     case 'users':
         if ($method !== 'GET') jsonError('Méthode non autorisée', 405);
         handleUsers();
@@ -80,7 +92,7 @@ function handleLogin(): void
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
-        jsonError('Identifiant ou mot de passe incorrect', 401);
+        jsonError('Identifiant ou mot de passe incorrect', 400);
     }
 
     $userId = (int) $user['id'];
@@ -122,6 +134,101 @@ function handleUsers(): void
     $stmt = $db->prepare('SELECT id, username FROM users WHERE id != ? ORDER BY username');
     $stmt->execute([$userId]);
     jsonOk($stmt->fetchAll());
+}
+
+function handleChangePassword(): void
+{
+    $userId = authenticate();
+    $body   = jsonInput();
+    $current = $body['current_password'] ?? '';
+    $newPass = $body['new_password']     ?? '';
+
+    if (strlen($newPass) < 6) jsonError('Le nouveau mot de passe doit contenir au moins 6 caractères');
+
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+    if (!$user || !password_verify($current, $user['password_hash'])) {
+        jsonError('Mot de passe actuel incorrect', 400);
+    }
+
+    $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+       ->execute([password_hash($newPass, PASSWORD_DEFAULT), $userId]);
+
+    // Invalider toutes les autres sessions
+    $db->prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?')
+       ->execute([$userId, extractToken()]);
+
+    jsonOk();
+}
+
+function handleChangeUsername(): void
+{
+    $userId  = authenticate();
+    $body    = jsonInput();
+    $newName = trim($body['username'] ?? '');
+    $pass    = $body['password']     ?? '';
+
+    if (strlen($newName) < 3) jsonError("L'identifiant doit contenir au moins 3 caractères");
+    if (!preg_match('/^[a-zA-Z0-9_\-\.]+$/', $newName)) {
+        jsonError("L'identifiant ne peut contenir que des lettres, chiffres, _ - .");
+    }
+
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+    if (!$user || !password_verify($pass, $user['password_hash'])) {
+        jsonError('Mot de passe incorrect', 400);
+    }
+
+    $check = $db->prepare('SELECT id FROM users WHERE username = ? AND id != ?');
+    $check->execute([$newName, $userId]);
+    if ($check->fetch()) jsonError('Cet identifiant est déjà utilisé');
+
+    $db->prepare('UPDATE users SET username = ? WHERE id = ?')->execute([$newName, $userId]);
+    jsonOk(['username' => $newName]);
+}
+
+function handleDeleteAccount(): void
+{
+    $userId = authenticate();
+    $body   = jsonInput();
+    $pass   = $body['password'] ?? '';
+
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT password_hash FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+    if (!$user || !password_verify($pass, $user['password_hash'])) {
+        jsonError('Mot de passe incorrect', 400);
+    }
+
+    // Supprimer les fichiers photos (bouteilles + recettes)
+    foreach (['bottles', 'recipes'] as $table) {
+        $q = $db->prepare("SELECT photo FROM {$table} WHERE user_id = ? AND photo IS NOT NULL");
+        $q->execute([$userId]);
+        foreach ($q->fetchAll() as $row) {
+            $path = __DIR__ . '/../' . $row['photo'];
+            if (file_exists($path)) @unlink($path);
+        }
+    }
+
+    // La suppression en cascade fait le reste (sessions, bottles, recipes, productions…)
+    $db->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+    jsonOk();
+}
+
+function extractToken(): string
+{
+    $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (empty($header) && function_exists('getallheaders')) {
+        $h      = getallheaders();
+        $header = $h['Authorization'] ?? $h['authorization'] ?? '';
+    }
+    if (preg_match('/^Bearer\s+(.+)$/i', $header, $m)) return $m[1];
+    return '';
 }
 
 function createSession(PDO $db, int $userId): string

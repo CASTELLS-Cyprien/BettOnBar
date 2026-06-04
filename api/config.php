@@ -142,20 +142,40 @@ function initDB(PDO $pdo): void
             tasted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (production_id) REFERENCES productions(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS stock_ingredients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            quantity REAL DEFAULT 0,
+            unit TEXT DEFAULT 'unité',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
     ");
 }
 
 function authenticate(): int
 {
+    // Compatibilité Apache mod_php, FastCGI, WAMP, XAMPP
     $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (empty($header)) {
+        $header = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    }
+    if (empty($header) && function_exists('getallheaders')) {
+        $h      = getallheaders();
+        $header = $h['Authorization'] ?? $h['authorization'] ?? '';
+    }
+
     if (!preg_match('/^Bearer\s+(.+)$/i', $header, $m)) {
         http_response_code(401);
         echo json_encode(['error' => 'Token manquant']);
         exit;
     }
     $token = $m[1];
-    $db = getDB();
-    $stmt = $db->prepare(
+    $db    = getDB();
+    $stmt  = $db->prepare(
         "SELECT user_id FROM sessions WHERE token = ? AND expires_at > datetime('now')"
     );
     $stmt->execute([$token]);
@@ -176,6 +196,34 @@ function jsonInput(): array
     }
     $data = json_decode($raw, true);
     return is_array($data) ? $data : [];
+}
+
+function saveUploadedPhoto(string $field = 'photo'): string
+{
+    if (!isset($_FILES[$field]) || $_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
+        jsonError('Aucun fichier reçu');
+    }
+    $file = $_FILES[$field];
+    $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if ($ext === 'jpg') $ext = 'jpeg';
+    if (!in_array($ext, ['jpeg', 'png', 'webp', 'gif'])) {
+        jsonError('Format non supporté (jpg, png, webp, gif)');
+    }
+    if ($file['size'] > 5 * 1024 * 1024) {
+        jsonError('Fichier trop volumineux (max 5 Mo)');
+    }
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime  = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'])) {
+        jsonError('Type MIME non autorisé');
+    }
+    if (!is_dir(UPLOADS_DIR)) mkdir(UPLOADS_DIR, 0755, true);
+    $filename = bin2hex(random_bytes(16)) . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], UPLOADS_DIR . $filename)) {
+        jsonError("Erreur lors de l'enregistrement du fichier", 500);
+    }
+    return UPLOADS_URL . $filename;
 }
 
 function jsonError(string $msg, int $code = 400): void

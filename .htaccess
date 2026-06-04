@@ -1,0 +1,5 @@
+# Transmet le header Authorization à PHP (requis avec certains Apache/FastCGI)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization},L]
+</IfModule>

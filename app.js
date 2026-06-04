@@ -19,7 +19,8 @@ async function api(ep, opts) {
             currentUser = null;
             localStorage.removeItem('bettonbar_token');
             localStorage.removeItem('bettonbar_user');
-            navigate('auth');
+            // N'appelle navigate que si on n'est pas déjà en train de s'authentifier
+            if (state.view !== 'auth') navigate('auth');
             return { error: 'Session expirée, veuillez vous reconnecter' };
         }
         return await res.json();
@@ -43,8 +44,9 @@ function navigate(view, data) {
     switch (view) {
         case 'auth':            renderAuth();                      break;
         case 'home':            renderHome();                      break;
-        case 'bottles':         renderBottles();                   break;
-        case 'bottle-form':     renderBottleForm(data && data.id); break;
+        case 'bottles':          renderBottles();                        break;
+        case 'bottle-form':      renderBottleForm(data && data.id);     break;
+        case 'ingredient-form':  renderIngredientForm(data && data.id); break;
         case 'recipes':         renderRecipes();                   break;
         case 'recipe-view':     renderRecipeView(data && data.id); break;
         case 'recipe-form':     renderRecipeForm(data && data.id); break;
@@ -81,63 +83,37 @@ function esc(s) {
         .replace(/"/g, '&quot;');
 }
 
+// Correspondance noms Feather → noms Lucide (renommages)
+var LUCIDE_MAP = {
+    'tool':           'wrench',
+    'edit-2':         'pencil',
+    'alert-triangle': 'triangle-alert',
+    'alert-circle':   'circle-alert',
+    'check-circle':   'circle-check',
+    'x-circle':       'circle-x',
+    'plus-circle':    'circle-plus',
+    'share-2':        'share-2',
+    'trending-up':    'trending-up',
+    'refresh-cw':     'refresh-cw',
+};
+
 function icon(name, size) {
     size = size || 20;
-    var icons = {
-        'user':           '<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>',
-        'lock':           '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
-        'eye':            '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
-        'eye-off':        '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>',
-        'log-in':         '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>',
-        'log-out':        '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
-        'home':           '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
-        'package':        '<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
-        'book-open':      '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
-        'zap':            '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
-        'heart':          '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
-        'tool':           '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
-        'settings':       '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
-        'plus':           '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
-        'plus-circle':    '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
-        'edit-2':         '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
-        'trash-2':        '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
-        'arrow-left':     '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
-        'check':          '<polyline points="20 6 9 11 4 16"/>',
-        'check-circle':   '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
-        'x':              '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
-        'x-circle':       '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
-        'alert-triangle': '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-        'alert-circle':   '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
-        'star':           '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
-        'camera':         '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
-        'image':          '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
-        'search':         '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
-        'filter':         '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
-        'chevron-right':  '<polyline points="9 18 15 12 9 6"/>',
-        'chevron-down':   '<polyline points="6 9 12 15 18 9"/>',
-        'chevron-left':   '<polyline points="15 18 9 12 15 6"/>',
-        'clock':          '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
-        'dollar-sign':    '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-        'percent':        '<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
-        'droplet':        '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>',
-        'share-2':        '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
-        'users':          '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-        'info':           '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
-        'trending-up':    '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
-        'refresh-cw':     '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
-    };
-    var d = icons[name] || '';
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+    var lucideName = LUCIDE_MAP[name] || name;
+    // Wrapper span pour un alignement fiable quelle que soit le contexte (flex, inline, texte)
+    return '<span class="ic" style="width:' + size + 'px;height:' + size + 'px" aria-hidden="true">' +
+               '<i data-lucide="' + lucideName + '"></i>' +
+           '</span>';
 }
 
 // ─── Navigation bar ───────────────────────────────────────────────────────────
 function navBar(active) {
     var items = [
-        { id: 'bottles',     label: 'Bar',      ico: 'package'   },
-        { id: 'recipes',     label: 'Recettes', ico: 'book-open' },
-        { id: 'suggest',     label: 'Faire ?',  ico: 'zap'       },
-        { id: 'productions', label: 'Maison',   ico: 'tool'      },
-        { id: 'personal',    label: 'Perso',    ico: 'heart'     },
+        { id: 'bottles',     label: 'Mon Bar',  ico: 'wine'           },
+        { id: 'recipes',     label: 'Recettes', ico: 'chef-hat'       },
+        { id: 'suggest',     label: 'Idées',    ico: 'lightbulb'      },
+        { id: 'productions', label: 'Brassage', ico: 'flask-conical'  },
+        { id: 'personal',    label: 'Favoris',  ico: 'bookmark'       },
     ];
     return '<nav class="bottom-nav">' +
         items.map(function (i) {
@@ -165,7 +141,7 @@ function renderAuth() {
     render(
         '<div class="auth-page">' +
             '<div class="auth-brand">' +
-                '<div class="auth-logo-icon">' + icon('droplet', 52) + '</div>' +
+                '<div class="auth-logo-icon">' + icon('wine', 52) + '</div>' +
                 '<h1 class="auth-title">BettOnBar</h1>' +
                 '<p class="auth-subtitle">Gérez votre bar personnel</p>' +
             '</div>' +
@@ -309,24 +285,379 @@ function renderHome() {
     navigate('bottles');
 }
 
-// ─── Bottles (stub) ───────────────────────────────────────────────────────────
+// ─── Bottles ──────────────────────────────────────────────────────────────────
+var BOTTLE_TYPES = [
+    'Armagnac','Bière','Calvados','Champagne','Cidre','Cognac',
+    'Eau-de-vie','Gin','Liqueur','Rhum','Téquila',
+    'Vin blanc','Vin rosé','Vin rouge','Vodka','Whisky','Autre'
+];
+
+function starsHtml(rating) {
+    if (rating === null || rating === undefined || rating === '') {
+        return '<span class="text-muted" style="font-size:12px">—</span>';
+    }
+    rating = parseFloat(rating);
+    var html = '';
+    for (var i = 1; i <= 5; i++) {
+        var color = i <= rating ? 'var(--gold)' : 'var(--border)';
+        html += '<span style="color:' + color + ';font-size:15px">★</span>';
+    }
+    return html + '<span style="font-size:11px;color:var(--text-muted);margin-left:2px">' + rating + '</span>';
+}
+
+function fillBarHtml(pct) {
+    pct = parseInt(pct) || 0;
+    var cls = pct <= 15 ? 'fill-low' : (pct <= 40 ? 'fill-medium' : '');
+    return '<div class="fill-row">' +
+        '<div class="fill-bar"><div class="fill-bar-inner ' + cls + '" style="width:' + pct + '%"></div></div>' +
+        '<span class="fill-label">' + pct + '%</span>' +
+    '</div>';
+}
+
+function ratingStarsStr(val) {
+    val = parseFloat(val) || 0;
+    var full = Math.floor(val);
+    var half = (val - full) >= 0.5 ? 1 : 0;
+    var empty = 5 - full - half;
+    return '<span style="color:var(--gold);font-size:22px;letter-spacing:1px">' +
+        '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty) +
+    '</span>';
+}
+
+function updateRatingLabel(val) {
+    val = parseFloat(val) || 0;
+    var lbl = document.getElementById('rating-label');
+    var strs = document.getElementById('rating-stars');
+    if (lbl)  lbl.textContent = val > 0 ? val + '/5' : '—';
+    if (strs) strs.innerHTML  = ratingStarsStr(val);
+}
+
 function renderBottles() {
+    if (state.barTab         === undefined) state.barTab         = 'bottles';
+    if (state.bottlesSearch  === undefined) state.bottlesSearch  = '';
+    if (state.bottlesType    === undefined) state.bottlesType    = '';
+    var tab = state.barTab;
+
     render(
         '<div class="page">' +
             '<header class="app-header">' +
-                '<h1>' + icon('package', 22) + ' Mon Bar</h1>' +
+                '<h1>' + icon('wine', 20) + ' Mon Bar</h1>' +
                 '<button class="icon-btn" onclick="navigate(\'settings\')">' + icon('settings', 22) + '</button>' +
             '</header>' +
             '<div class="page-content">' +
-                '<div class="empty-state">' +
-                    icon('package', 48) +
-                    '<p>Module bouteilles</p>' +
-                    '<small>Disponible à l\'étape 4</small>' +
+                '<div class="tabs" style="margin-bottom:14px">' +
+                    '<button class="tab' + (tab === 'bottles'     ? ' active' : '') + '" onclick="onBarTab(\'bottles\')">'     + icon('wine', 13)  + ' Bouteilles</button>' +
+                    '<button class="tab' + (tab === 'ingredients' ? ' active' : '') + '" onclick="onBarTab(\'ingredients\')">' + icon('leaf', 13)  + ' Ingrédients</button>' +
                 '</div>' +
+                (tab === 'bottles' ?
+                    '<div class="search-bar">' +
+                        '<span class="search-bar-icon">' + icon('search', 16) + '</span>' +
+                        '<input class="input" type="search" id="bottles-search" placeholder="Rechercher une bouteille…" ' +
+                               'value="' + esc(state.bottlesSearch) + '" oninput="onBottlesSearch(this.value)">' +
+                    '</div>' +
+                    '<div class="chips-scroll" id="bottles-filters"></div>'
+                : '') +
+                '<div id="bar-content"><div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div></div>' +
             '</div>' +
+            '<button class="fab" onclick="navigate(\'' + (tab === 'bottles' ? 'bottle-form' : 'ingredient-form') + '\')" title="' + (tab === 'bottles' ? 'Ajouter une bouteille' : 'Ajouter un ingrédient') + '">' +
+                icon('plus', 24) +
+            '</button>' +
             navBar('bottles') +
         '</div>'
     );
+
+    if (tab === 'bottles') {
+        (async function () {
+            if (!state.bottles) {
+                var res = await api('bottles.php');
+                if (!res || res.error) {
+                    document.getElementById('bar-content').innerHTML =
+                        '<div class="empty-state">' + icon('alert-circle', 40) + '<p>' + esc((res && res.error) || 'Erreur') + '</p></div>';
+                    return;
+                }
+                state.bottles = Array.isArray(res) ? res : [];
+            }
+            refreshBottlesView();
+        }());
+    } else {
+        (async function () {
+            if (!state.stockIngredients) {
+                var res = await api('stock.php');
+                if (!res || res.error) {
+                    document.getElementById('bar-content').innerHTML =
+                        '<div class="empty-state">' + icon('alert-circle', 40) + '<p>' + esc((res && res.error) || 'Erreur') + '</p></div>';
+                    return;
+                }
+                state.stockIngredients = Array.isArray(res) ? res : [];
+            }
+            refreshIngredientsView();
+        }());
+    }
+}
+
+function onBarTab(tab) {
+    state.barTab = tab;
+    renderBottles();
+}
+
+function refreshBottlesView() {
+    var bottles = state.bottles || [];
+    // alias pour compatibilité avec l'ancien id
+    var listEl  = document.getElementById('bar-content') || document.getElementById('bottles-list');
+    var types = [];
+    bottles.forEach(function (b) {
+        if (b.type && types.indexOf(b.type) === -1) types.push(b.type);
+    });
+    types.sort();
+
+    var filtersEl = document.getElementById('bottles-filters');
+    if (filtersEl) {
+        var fHtml = '<button class="chip' + (!state.bottlesType ? ' active' : '') +
+                    '" onclick="onBottlesFilter(\'\')">Tous (' + bottles.length + ')</button>';
+        types.forEach(function (t) {
+            var cnt = bottles.filter(function (b) { return b.type === t; }).length;
+            fHtml += '<button class="chip' + (state.bottlesType === t ? ' active' : '') +
+                     '" onclick="onBottlesFilter(\'' + esc(t) + '\')">' + esc(t) + ' (' + cnt + ')</button>';
+        });
+        filtersEl.innerHTML = fHtml;
+    }
+
+    var search = (state.bottlesSearch || '').toLowerCase();
+    var typeFilter = state.bottlesType || '';
+    var filtered = bottles.filter(function (b) {
+        var matchSearch = !search ||
+            b.name.toLowerCase().indexOf(search) !== -1 ||
+            (b.brand || '').toLowerCase().indexOf(search) !== -1 ||
+            b.type.toLowerCase().indexOf(search) !== -1;
+        return matchSearch && (!typeFilter || b.type === typeFilter);
+    });
+
+    if (!listEl) listEl = document.getElementById('bar-content');
+    if (!listEl) return;
+
+    if (!filtered.length) {
+        listEl.innerHTML =
+            '<div class="empty-state">' + icon('package', 44) +
+            '<p>' + (search || typeFilter ? 'Aucun résultat' : 'Votre bar est vide') + '</p>' +
+            (!search && !typeFilter ? '<small>Ajoutez votre première bouteille ↓</small>' : '') +
+            '</div>';
+        return;
+    }
+
+    var html = '<div class="card card-flush">';
+    filtered.forEach(function (b) {
+        var isLow  = parseInt(b.fill_pct) <= 15;
+        var pct    = parseInt(b.fill_pct) || 0;
+        var fillCls = pct <= 15 ? 'fill-low' : (pct <= 40 ? 'fill-medium' : '');
+        html +=
+            '<div class="bottle-card" onclick="navigate(\'bottle-form\',{id:' + b.id + '})">' +
+                (b.photo
+                    ? '<img class="bottle-thumb" src="' + esc(b.photo) + '" alt="" loading="lazy">'
+                    : '<div class="bottle-thumb-placeholder">' + icon('wine', 20) + '</div>') +
+                '<div class="bottle-info">' +
+                    '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px">' +
+                        '<div class="bottle-type" style="flex:1;min-width:0">' + esc(b.type) + (b.vintage ? ' · ' + b.vintage : '') + '</div>' +
+                        (isLow ? '<span class="chip chip-danger" style="font-size:10px;padding:1px 6px;flex-shrink:0">À racheter</span>' : '') +
+                    '</div>' +
+                    '<div class="bottle-name">' + esc(b.name) + '</div>' +
+                    (b.brand ? '<div class="bottle-brand">' + esc(b.brand) + '</div>' : '') +
+                    '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
+                        '<div class="fill-bar" style="flex:1"><div class="fill-bar-inner ' + fillCls + '" style="width:' + pct + '%"></div></div>' +
+                        '<span style="font-size:11px;color:var(--text-muted);min-width:30px;text-align:right">' + pct + '%</span>' +
+                    '</div>' +
+                    (b.rating ? '<div style="margin-top:4px;font-size:13px;letter-spacing:1px">' + starsHtml(b.rating) + '</div>' : '') +
+                '</div>' +
+                '<span style="color:var(--text-muted);flex-shrink:0;margin-left:4px">' + icon('chevron-right', 16) + '</span>' +
+            '</div>';
+    });
+    html += '</div>';
+    listEl.innerHTML = html;
+}
+
+function onBottlesSearch(val) { state.bottlesSearch = val; refreshBottlesView(); }
+function onBottlesFilter(type) { state.bottlesType = type; refreshBottlesView(); }
+
+// ─── Ingrédients stock ────────────────────────────────────────────────────────
+var STOCK_UNITS = ['unité', 'cl', 'ml', 'L', 'g', 'kg', 'c.à.s.', 'c.à.c.', 'feuille', 'pincée', 'trait'];
+
+function refreshIngredientsView() {
+    var items = state.stockIngredients || [];
+    var el    = document.getElementById('bar-content');
+    if (!el) return;
+
+    if (!items.length) {
+        el.innerHTML = '<div class="empty-state">' + icon('droplet', 44) +
+            '<p>Aucun ingrédient en stock</p>' +
+            '<small>Ajoutez sirop, jus, épices, fruits…</small></div>';
+        return;
+    }
+
+    el.innerHTML = '<div class="card card-flush">' +
+        items.map(function (item) {
+            var qty    = parseFloat(item.quantity) || 0;
+            var empty  = qty <= 0;
+            var qtyStr = qty % 1 === 0 ? qty.toFixed(0) : qty.toFixed(1);
+            return '<div class="list-item" onclick="navigate(\'ingredient-form\',{id:' + item.id + '})">' +
+                '<div style="width:40px;height:40px;border-radius:var(--radius-sm);background:var(--accent-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">' +
+                    icon('leaf', 18) +
+                '</div>' +
+                '<div class="list-item-body">' +
+                    '<div class="list-item-title">' + esc(item.name) + '</div>' +
+                    (item.description ? '<div class="list-item-sub">' + esc(item.description) + '</div>' : '') +
+                    (empty ? '<span class="chip chip-danger" style="font-size:11px;padding:1px 6px;margin-top:3px;display:inline-flex">Épuisé</span>' : '') +
+                '</div>' +
+                '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0" onclick="event.stopPropagation()">' +
+                    '<button class="portions-btn" onclick="doAdjustIngredient(' + item.id + ',-1)">−</button>' +
+                    '<span id="stock-qty-' + item.id + '" style="min-width:56px;text-align:center;font-size:13px;font-weight:600;color:' + (empty ? 'var(--danger)' : 'var(--text)') + '">' +
+                        qtyStr + ' ' + esc(item.unit) +
+                    '</span>' +
+                    '<button class="portions-btn" onclick="doAdjustIngredient(' + item.id + ',1)">+</button>' +
+                '</div>' +
+                '<span style="color:var(--text-muted);margin-left:4px">' + icon('chevron-right', 14) + '</span>' +
+            '</div>';
+        }).join('') +
+    '</div>';
+}
+
+async function doAdjustIngredient(id, delta) {
+    var res = await post('stock.php?action=adjust', { id: id, delta: delta });
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+
+    if (state.stockIngredients) {
+        var item = state.stockIngredients.find(function (i) { return i.id == id; });
+        if (item) item.quantity = res.quantity;
+    }
+    state.suggestAnalyzed = null; // invalider le cache suggest
+
+    var el = document.getElementById('stock-qty-' + id);
+    if (el) {
+        var item2 = (state.stockIngredients || []).find(function (i) { return i.id == id; });
+        var unit  = item2 ? item2.unit : '';
+        var qty   = res.quantity;
+        var qStr  = qty % 1 === 0 ? qty.toFixed(0) : qty.toFixed(1);
+        el.textContent = qStr + ' ' + unit;
+        el.style.color = qty <= 0 ? 'var(--danger)' : 'var(--text)';
+    }
+}
+
+function renderIngredientForm(id) {
+    render(
+        '<div class="page">' +
+            '<header class="app-header">' +
+                '<button class="back-btn" onclick="navigate(\'bottles\')">' + icon('arrow-left', 20) + '</button>' +
+                '<h1>' + (id ? 'Modifier l\'ingrédient' : 'Nouvel ingrédient') + '</h1>' +
+                (id ? '<button class="icon-btn" style="color:var(--danger)" onclick="confirmDeleteIngredient(' + id + ')">' + icon('trash-2', 20) + '</button>' : '') +
+            '</header>' +
+            '<div class="page-content page-content-no-nav" id="if-inner">' +
+                '<div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div>' +
+            '</div>' +
+        '</div>'
+    );
+    (async function () {
+        var item = {};
+        if (id) {
+            if (state.stockIngredients) item = state.stockIngredients.find(function (i) { return i.id == id; }) || {};
+            if (!item.id) {
+                var res = await api('stock.php');
+                if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+                state.stockIngredients = Array.isArray(res) ? res : [];
+                item = state.stockIngredients.find(function (i) { return i.id == id; }) || {};
+            }
+            if (!item.id) { toast('Ingrédient introuvable', 'error'); navigate('bottles'); return; }
+        } else if (state.data && state.data.prefillName) {
+            item = { name: state.data.prefillName };
+        }
+        var el = document.getElementById('if-inner');
+        if (el) el.innerHTML = ingredientFormHtml(item);
+    }());
+}
+
+function ingredientFormHtml(item) {
+    var unitOpts = STOCK_UNITS.map(function (u) {
+        return '<option value="' + u + '"' + ((item.unit || 'unité') === u ? ' selected' : '') + '>' + u + '</option>';
+    }).join('');
+    var qty = parseFloat(item.quantity) || 0;
+
+    return '<form onsubmit="doSaveIngredient(event,' + (item.id || 0) + ')">' +
+        '<div class="input-group"><label>Nom <span class="required">*</span></label>' +
+            '<input class="input" type="text" name="name" placeholder="Ex : Jus de citron, Sirop de sucre…" value="' + esc(item.name || '') + '" required autofocus>' +
+        '</div>' +
+        '<div class="input-group"><label>Description <span style="color:var(--text-muted);font-size:12px">(optionnelle)</span></label>' +
+            '<input class="input" type="text" name="description" placeholder="Ex : Fraîchement pressé, Bio…" value="' + esc(item.description || '') + '">' +
+        '</div>' +
+        '<div class="input-row">' +
+            '<div class="input-group" style="flex:2"><label>Quantité en stock</label>' +
+                '<input class="input" type="number" name="quantity" min="0" step="0.1" placeholder="0" value="' + esc(qty || '') + '"></div>' +
+            '<div class="input-group" style="flex:1"><label>Unité</label>' +
+                '<select class="input" name="unit">' + unitOpts + '</select></div>' +
+        '</div>' +
+        '<button class="btn btn-primary btn-full" type="submit" id="save-ing-btn">' +
+            icon('check', 18) + (item.id ? ' Enregistrer' : ' Ajouter l\'ingrédient') +
+        '</button>' +
+        (item.id ? '<button class="btn btn-outline-danger btn-full mt-8" type="button" onclick="confirmDeleteIngredient(' + item.id + ')">' + icon('trash-2', 16) + ' Supprimer</button>' : '') +
+        '<div style="height:16px"></div>' +
+    '</form>';
+}
+
+async function doSaveIngredient(e, id) {
+    e.preventDefault();
+    var form = e.target;
+    var btn  = document.getElementById('save-ing-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span> Enregistrement…';
+
+    var data = {
+        name:        form.querySelector('[name=name]').value.trim(),
+        description: form.querySelector('[name=description]').value.trim(),
+        quantity:    parseFloat(form.querySelector('[name=quantity]').value) || 0,
+        unit:        form.querySelector('[name=unit]').value,
+    };
+
+    var res;
+    if (id) { data.id = id; res = await put('stock.php', data); }
+    else                     res = await post('stock.php', data);
+
+    if (!res || res.error) {
+        toast((res && res.error) || 'Erreur', 'error');
+        btn.disabled = false;
+        btn.innerHTML = icon('check', 18) + (id ? ' Enregistrer' : ' Ajouter l\'ingrédient');
+        return;
+    }
+    toast(id ? 'Ingrédient modifié !' : 'Ingrédient ajouté !');
+    state.stockIngredients = null;
+    state.suggestAnalyzed  = null;
+    // Revenir à l'onglet ingrédients
+    state.barTab = 'ingredients';
+    navigate('bottles');
+}
+
+function confirmDeleteIngredient(id) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal confirm-dialog">' +
+            '<div style="color:var(--danger);margin-bottom:8px">' + icon('trash-2', 36) + '</div>' +
+            '<h3>Supprimer l\'ingrédient ?</h3>' +
+            '<p>Il ne sera plus pris en compte dans les suggestions.</p>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-surface" onclick="document.querySelector(\'.modal-overlay\').remove()">Annuler</button>' +
+                '<button class="btn btn-danger" onclick="doDeleteIngredient(' + id + ')">Supprimer</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doDeleteIngredient(id) {
+    var overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
+    var res = await del('stock.php?id=' + id);
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Ingrédient supprimé');
+    state.stockIngredients = null;
+    state.suggestAnalyzed  = null;
+    state.barTab = 'ingredients';
+    navigate('bottles');
 }
 
 function renderBottleForm(id) {
@@ -334,26 +665,383 @@ function renderBottleForm(id) {
         '<div class="page">' +
             '<header class="app-header">' +
                 '<button class="back-btn" onclick="navigate(\'bottles\')">' + icon('arrow-left', 20) + '</button>' +
-                '<h1>' + (id ? 'Modifier' : 'Ajouter') + ' une bouteille</h1>' +
+                '<h1>' + (id ? 'Modifier la bouteille' : 'Ajouter une bouteille') + '</h1>' +
+                (id ? '<button class="icon-btn" style="color:var(--danger)" onclick="confirmDeleteBottle(' + id + ')" title="Supprimer">' + icon('trash-2', 20) + '</button>' : '') +
             '</header>' +
-            '<div class="page-content"><div class="empty-state"><p>Formulaire — étape 4</p></div></div>' +
+            '<div class="page-content page-content-no-nav">' +
+                '<div id="bottle-form-inner">' +
+                    '<div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div>' +
+                '</div>' +
+            '</div>' +
         '</div>'
     );
+
+    (async function () {
+        var bottle = {};
+        if (id) {
+            if (state.bottles) {
+                bottle = state.bottles.find(function (b) { return b.id == id; }) || null;
+            }
+            if (!bottle) {
+                var res = await api('bottles.php');
+                if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+                state.bottles = Array.isArray(res) ? res : [];
+                bottle = state.bottles.find(function (b) { return b.id == id; }) || null;
+            }
+            if (!bottle) { toast('Bouteille introuvable', 'error'); navigate('bottles'); return; }
+        } else if (state.data && state.data.prefillName) {
+            // Pré-remplissage depuis "Que faire ?" (ingrédient manquant)
+            bottle = { name: state.data.prefillName };
+        }
+        var el = document.getElementById('bottle-form-inner');
+        if (el) el.innerHTML = bottleFormHtml(bottle || {});
+    }());
 }
 
-// ─── Recipes (stub) ───────────────────────────────────────────────────────────
+function bottleFormHtml(b) {
+    var typesOpts = '<option value="">— Choisir un type —</option>' +
+        BOTTLE_TYPES.map(function (t) {
+            return '<option value="' + esc(t) + '"' + (b.type === t ? ' selected' : '') + '>' + esc(t) + '</option>';
+        }).join('');
+
+    var fillPct = parseInt(b.fill_pct !== undefined && b.fill_pct !== null ? b.fill_pct : 100);
+    var rating  = (b.rating !== null && b.rating !== undefined) ? parseFloat(b.rating) : 0;
+
+    return '<form id="bottle-form" onsubmit="doSaveBottle(event,' + (b.id || 0) + ')">' +
+
+        // Photo
+        '<div class="section-header"><span class="section-title">Photo</span></div>' +
+        '<div class="photo-upload" id="photo-zone" onclick="document.getElementById(\'photo-input\').click()">' +
+            (b.photo
+                ? '<img class="photo-preview" id="photo-preview" src="' + esc(b.photo) + '" alt="">'
+                : icon('camera', 30) + '<span style="font-size:14px">Ajouter une photo</span>') +
+        '</div>' +
+        '<input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none" onchange="doUploadPhoto(this)">' +
+        '<input type="hidden" id="photo-path" value="' + esc(b.photo || '') + '">' +
+
+        // Identité
+        '<div class="section-header mt-16"><span class="section-title">Identité</span></div>' +
+        '<div class="input-row">' +
+            '<div class="input-group" style="flex:2">' +
+                '<label>Type <span class="required">*</span></label>' +
+                '<select class="input" name="type" required>' + typesOpts + '</select>' +
+            '</div>' +
+            '<div class="input-group" style="flex:1">' +
+                '<label>Millésime</label>' +
+                '<input class="input" type="number" name="vintage" min="1800" max="2099" placeholder="2020" value="' + esc(b.vintage || '') + '">' +
+            '</div>' +
+        '</div>' +
+        '<div class="input-group">' +
+            '<label>Marque</label>' +
+            '<input class="input" type="text" name="brand" placeholder="Ex : Laphroaig" value="' + esc(b.brand || '') + '">' +
+        '</div>' +
+        '<div class="input-group">' +
+            '<label>Nom <span class="required">*</span></label>' +
+            '<input class="input" type="text" name="name" placeholder="Ex : 10 ans d\'âge" value="' + esc(b.name || '') + '" required>' +
+        '</div>' +
+
+        // Achat
+        '<div class="section-header"><span class="section-title">Achat</span></div>' +
+        '<div class="input-row">' +
+            '<div class="input-group">' +
+                '<label>Prix (€)</label>' +
+                '<input class="input" type="number" name="price" min="0" step="0.01" placeholder="0.00" value="' + esc(b.price || '') + '">' +
+            '</div>' +
+            '<div class="input-group" style="flex:2">' +
+                '<label>Lieu d\'achat</label>' +
+                '<input class="input" type="text" name="shop" placeholder="Cave Nicolas, Amazon…" value="' + esc(b.shop || '') + '">' +
+            '</div>' +
+        '</div>' +
+
+        // Conservation
+        '<div class="section-header"><span class="section-title">Conservation</span></div>' +
+        '<div class="input-row">' +
+            '<div class="input-group">' +
+                '<label>Date d\'ouverture</label>' +
+                '<input class="input" type="date" name="opened_at" value="' + esc(b.opened_at || '') + '">' +
+            '</div>' +
+            '<div class="input-group">' +
+                '<label>Rangement</label>' +
+                '<input class="input" type="text" name="storage" placeholder="Cave, bar, frigo…" value="' + esc(b.storage || '') + '">' +
+            '</div>' +
+        '</div>' +
+
+        // Niveau
+        '<div class="input-group">' +
+            '<label>Niveau de remplissage — <strong id="fill-label">' + fillPct + '%</strong></label>' +
+            fillBarHtml(fillPct) +
+            '<input type="range" name="fill_pct" min="0" max="100" step="5" value="' + fillPct + '" ' +
+                   'style="width:100%;margin-top:8px" oninput="document.getElementById(\'fill-label\').textContent=this.value+\'%\';document.querySelector(\'.fill-bar-inner\').style.width=this.value+\'%\'">' +
+        '</div>' +
+
+        // Note
+        '<div class="input-group">' +
+            '<label>Note personnelle — <strong id="rating-label">' + (rating > 0 ? rating + '/5' : '—') + '</strong></label>' +
+            '<div style="display:flex;align-items:center;gap:12px;margin-top:4px">' +
+                '<input type="range" name="rating" min="0" max="5" step="0.5" value="' + rating + '" ' +
+                       'style="flex:1" oninput="updateRatingLabel(this.value)">' +
+                '<span id="rating-stars">' + ratingStarsStr(rating) + '</span>' +
+            '</div>' +
+        '</div>' +
+
+        // Notes texte
+        '<div class="section-header"><span class="section-title">Notes</span></div>' +
+        '<div class="input-group">' +
+            '<label>Description</label>' +
+            '<textarea class="input" name="description" rows="2" placeholder="Arômes, caractère du produit…">' + esc(b.description || '') + '</textarea>' +
+        '</div>' +
+        '<div class="input-group">' +
+            '<label>Commentaire personnel</label>' +
+            '<textarea class="input" name="comment" rows="2" placeholder="Occasion, souvenir, idées…">' + esc(b.comment || '') + '</textarea>' +
+        '</div>' +
+
+        '<div style="height:8px"></div>' +
+        '<button class="btn btn-primary btn-full" type="submit" id="save-bottle-btn">' +
+            icon('check', 18) + (b.id ? ' Enregistrer les modifications' : ' Ajouter la bouteille') +
+        '</button>' +
+        (b.id
+            ? '<button class="btn btn-outline-danger btn-full mt-8" type="button" onclick="confirmDeleteBottle(' + b.id + ')">' +
+                icon('trash-2', 16) + ' Supprimer cette bouteille' +
+              '</button>'
+            : '') +
+        '<div style="height:16px"></div>' +
+    '</form>';
+}
+
+async function doUploadPhoto(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var zone = document.getElementById('photo-zone');
+    if (zone) zone.innerHTML = '<div class="loading-spinner"></div>';
+    var form = new FormData();
+    form.append('photo', file);
+    try {
+        var res = await fetch(API + '/bottles.php?action=upload_photo', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token },
+            body: form
+        });
+        var data = await res.json();
+        if (data.error) {
+            toast(data.error, 'error');
+            if (zone) zone.innerHTML = icon('camera', 30) + '<span style="font-size:14px">Ajouter une photo</span>';
+            return;
+        }
+        document.getElementById('photo-path').value = data.path;
+        if (zone) zone.innerHTML = '<img class="photo-preview" src="' + esc(data.path) + '" alt="">';
+    } catch (err) {
+        toast('Erreur lors de l\'upload', 'error');
+        if (zone) zone.innerHTML = icon('camera', 30) + '<span style="font-size:14px">Ajouter une photo</span>';
+    }
+}
+
+async function doSaveBottle(e, id) {
+    e.preventDefault();
+    var form = e.target;
+    var btn  = document.getElementById('save-bottle-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span> Enregistrement…';
+
+    var data = {
+        name:        form.querySelector('[name=name]').value.trim(),
+        type:        form.querySelector('[name=type]').value,
+        brand:       form.querySelector('[name=brand]').value.trim(),
+        price:       form.querySelector('[name=price]').value,
+        shop:        form.querySelector('[name=shop]').value.trim(),
+        photo:       document.getElementById('photo-path').value || null,
+        opened_at:   form.querySelector('[name=opened_at]').value || null,
+        vintage:     form.querySelector('[name=vintage]').value  || null,
+        storage:     form.querySelector('[name=storage]').value.trim(),
+        description: form.querySelector('[name=description]').value.trim(),
+        comment:     form.querySelector('[name=comment]').value.trim(),
+        rating:      form.querySelector('[name=rating]').value,
+        fill_pct:    parseInt(form.querySelector('[name=fill_pct]').value),
+    };
+
+    var res;
+    if (id) { data.id = id; res = await put('bottles.php', data); }
+    else                     res = await post('bottles.php', data);
+
+    if (!res || res.error) {
+        toast((res && res.error) || 'Erreur', 'error');
+        btn.disabled = false;
+        btn.innerHTML = icon('check', 18) + (id ? ' Enregistrer les modifications' : ' Ajouter la bouteille');
+        return;
+    }
+
+    toast(id ? 'Bouteille modifiée !' : 'Bouteille ajoutée !');
+    state.bottles = null;
+    navigate('bottles');
+}
+
+function confirmDeleteBottle(id) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal confirm-dialog">' +
+            '<div style="color:var(--danger);margin-bottom:8px">' + icon('trash-2', 36) + '</div>' +
+            '<h3>Supprimer cette bouteille ?</h3>' +
+            '<p>La photo sera également supprimée. Cette action est irréversible.</p>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-surface" onclick="document.querySelector(\'.modal-overlay\').remove()">Annuler</button>' +
+                '<button class="btn btn-danger" onclick="doDeleteBottle(' + id + ')">Supprimer</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doDeleteBottle(id) {
+    var overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
+    var res = await del('bottles.php?id=' + id);
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Bouteille supprimée');
+    state.bottles = null;
+    navigate('bottles');
+}
+
+// ─── Recipes ──────────────────────────────────────────────────────────────────
+function findRecipeById(id) {
+    if (!state.recipes) return null;
+    return state.recipes.find(function (r) { return r.id == id; }) || null;
+}
+
+function calcAlcohol(ingredients) {
+    var totalVol = 0, totalAlc = 0;
+    (ingredients || []).forEach(function (ing) {
+        var qty = parseFloat(ing.quantity) || 0;
+        totalVol += qty;
+        totalAlc += qty * (parseFloat(ing.alcohol_pct) || 0) / 100;
+    });
+    if (!totalVol) return 0;
+    return (totalAlc / totalVol * 100).toFixed(1);
+}
+
+function diffDotsHtml(diff) {
+    diff = parseInt(diff) || 1;
+    var h = '<span style="display:inline-flex;gap:3px;align-items:center">';
+    for (var i = 1; i <= 3; i++) {
+        h += '<span style="width:7px;height:7px;border-radius:50%;background:' +
+             (i <= diff ? 'var(--warning)' : 'var(--border)') + '"></span>';
+    }
+    return h + '</span>';
+}
+
+function setDifficulty(val) {
+    document.getElementById('difficulty-val').value = val;
+    document.querySelectorAll('.diff-btn').forEach(function (btn) {
+        var active = parseInt(btn.getAttribute('data-val')) === val;
+        btn.className = 'btn btn-sm diff-btn ' + (active ? 'btn-primary' : 'btn-surface');
+    });
+}
+
 function renderRecipes() {
+    if (state.recipesFilter === undefined) state.recipesFilter = 'all';
+    if (state.recipesSearch === undefined) state.recipesSearch = '';
+
     render(
         '<div class="page">' +
-            '<header class="app-header">' +
-                '<h1>' + icon('book-open', 22) + ' Recettes</h1>' +
-            '</header>' +
+            '<header class="app-header"><h1>' + icon('chef-hat', 20) + ' Mes Recettes</h1></header>' +
             '<div class="page-content">' +
-                '<div class="empty-state">' + icon('book-open', 48) + '<p>Disponible à l\'étape 5</p></div>' +
+                '<div class="search-bar">' +
+                    '<span class="search-bar-icon">' + icon('search', 16) + '</span>' +
+                    '<input class="input" type="search" id="recipes-search" placeholder="Rechercher…" ' +
+                           'value="' + esc(state.recipesSearch) + '" oninput="onRecipesSearch(this.value)">' +
+                '</div>' +
+                '<div class="tabs" style="margin-bottom:14px">' +
+                    '<button class="tab' + (state.recipesFilter === 'all' ? ' active' : '') +
+                            '" id="rtab-all" onclick="onRecipesFilter(\'all\')">Toutes</button>' +
+                    '<button class="tab' + (state.recipesFilter === 'favorites' ? ' active' : '') +
+                            '" id="rtab-favorites" onclick="onRecipesFilter(\'favorites\')">' + icon('heart', 14) + ' Favoris</button>' +
+                '</div>' +
+                '<div id="recipes-list"><div style="display:flex;justify-content:center;padding:40px">' +
+                    '<div class="loading-spinner"></div></div></div>' +
             '</div>' +
+            '<button class="fab" onclick="navigate(\'recipe-form\')" title="Nouvelle recette">' + icon('plus', 24) + '</button>' +
             navBar('recipes') +
         '</div>'
     );
+
+    (async function () {
+        var res = await api('recipes.php');
+        if (!res || res.error) {
+            document.getElementById('recipes-list').innerHTML =
+                '<div class="empty-state">' + icon('alert-circle', 40) + '<p>' + esc((res && res.error) || 'Erreur') + '</p></div>';
+            return;
+        }
+        state.recipes = Array.isArray(res) ? res : [];
+        refreshRecipesView();
+    }());
+}
+
+function refreshRecipesView() {
+    var recipes = state.recipes || [];
+    var search  = (state.recipesSearch || '').toLowerCase();
+    var filter  = state.recipesFilter || 'all';
+    var filtered = recipes.filter(function (r) {
+        return (!search || r.name.toLowerCase().indexOf(search) !== -1) &&
+               (filter === 'all' || (filter === 'favorites' && r.is_favorite));
+    });
+
+    var el = document.getElementById('recipes-list');
+    if (!el) return;
+
+    if (!filtered.length) {
+        el.innerHTML = '<div class="empty-state">' + icon('chef-hat', 44) +
+            '<p>' + (search || filter !== 'all' ? 'Aucune recette trouvée' : 'Aucune recette') + '</p>' +
+            (!search && filter === 'all' ? '<small>Ajoutez votre première recette ↓</small>' : '') + '</div>';
+        return;
+    }
+
+    var diffLabels = ['', 'Facile', 'Moyen', 'Difficile'];
+    el.innerHTML = filtered.map(function (r) {
+        var alc = parseFloat(calcAlcohol(r.ingredients));
+        return '<div class="card card-flush" style="margin-bottom:10px">' +
+            '<div style="display:flex;gap:12px;padding:14px;cursor:pointer" onclick="navigate(\'recipe-view\',{id:' + r.id + '})">' +
+                (r.photo
+                    ? '<img src="' + esc(r.photo) + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0">'
+                    : '<div style="width:72px;height:72px;background:var(--bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-light)">' + icon('chef-hat', 24) + '</div>') +
+                '<div style="flex:1;min-width:0">' +
+                    '<div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.name) + '</div>' +
+                    '<div style="display:flex;gap:8px;margin-top:5px;font-size:13px;color:var(--text-muted);align-items:center;flex-wrap:wrap">' +
+                        diffDotsHtml(r.difficulty) + ' <span class="text-xs">' + (diffLabels[r.difficulty] || 'Facile') + '</span>' +
+                        (r.prep_time ? ' <span style="display:flex;align-items:center;gap:3px">' + icon('clock', 13) + ' ' + r.prep_time + 'min</span>' : '') +
+                        ' <span style="display:flex;align-items:center;gap:3px">' + icon('users', 13) + ' ' + (r.servings || 1) + '</span>' +
+                    '</div>' +
+                    (alc > 0 ? '<div style="margin-top:5px"><span class="alc-badge">' + icon('droplet', 12) + ' ' + alc + '°</span></div>' : '') +
+                '</div>' +
+                '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0">' +
+                    '<button id="fav-' + r.id + '" style="font-size:20px;padding:6px;color:' + (r.is_favorite ? 'var(--danger)' : 'var(--text-muted)') + '" ' +
+                           'onclick="toggleFavoriteRecipe(' + r.id + ',event)">' + (r.is_favorite ? '♥' : '♡') + '</button>' +
+                    '<span style="color:var(--text-muted)">' + icon('chevron-right', 16) + '</span>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function onRecipesSearch(val) { state.recipesSearch = val; refreshRecipesView(); }
+function onRecipesFilter(val) {
+    state.recipesFilter = val;
+    var tabAll = document.getElementById('rtab-all');
+    var tabFav = document.getElementById('rtab-favorites');
+    if (tabAll) tabAll.className = 'tab' + (val === 'all'       ? ' active' : '');
+    if (tabFav) tabFav.className = 'tab' + (val === 'favorites' ? ' active' : '');
+    refreshRecipesView();
+}
+
+async function toggleFavoriteRecipe(id, event) {
+    if (event) event.stopPropagation();
+    var recipe = findRecipeById(id);
+    if (!recipe) return;
+    recipe.is_favorite = recipe.is_favorite ? 0 : 1;
+    var lb = document.getElementById('fav-' + id);
+    if (lb) { lb.textContent = recipe.is_favorite ? '♥' : '♡'; lb.style.color = recipe.is_favorite ? 'var(--danger)' : 'var(--text-muted)'; }
+    var hb = document.getElementById('fav-header-btn');
+    if (hb) hb.style.color = recipe.is_favorite ? 'var(--danger)' : 'var(--text-muted)';
+    var res = await post('recipes.php?action=toggle_favorite&id=' + id, {});
+    if (res && res.error) { recipe.is_favorite = recipe.is_favorite ? 0 : 1; toast(res.error, 'error'); }
 }
 
 function renderRecipeView(id) {
@@ -361,62 +1049,793 @@ function renderRecipeView(id) {
         '<div class="page">' +
             '<header class="app-header">' +
                 '<button class="back-btn" onclick="navigate(\'recipes\')">' + icon('arrow-left', 20) + '</button>' +
-                '<h1>Recette</h1>' +
+                '<h1 id="rv-title" style="font-size:15px">…</h1>' +
+                '<button id="fav-header-btn" class="icon-btn" onclick="toggleFavoriteRecipe(' + id + ',event)">' + icon('heart', 20) + '</button>' +
+                '<button class="icon-btn" onclick="navigate(\'recipe-form\',{id:' + id + '})">' + icon('edit-2', 20) + '</button>' +
             '</header>' +
-            '<div class="page-content"><div class="empty-state"><p>Étape 5</p></div></div>' +
+            '<div class="page-content page-content-no-nav" id="rv-content">' +
+                '<div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div>' +
+            '</div>' +
         '</div>'
     );
+
+    (async function () {
+        var recipe = findRecipeById(id);
+        if (!recipe || !recipe.ingredients) {
+            var res = await api('recipes.php?id=' + id);
+            if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+            recipe = res;
+            if (!state.recipes) state.recipes = [];
+            var idx = state.recipes.findIndex(function (r) { return r.id == id; });
+            if (idx >= 0) state.recipes[idx] = recipe; else state.recipes.push(recipe);
+        }
+        state.recipePortions = parseInt(recipe.servings) || 1;
+        var titleEl = document.getElementById('rv-title');
+        if (titleEl) titleEl.textContent = recipe.name;
+        var favBtn = document.getElementById('fav-header-btn');
+        if (favBtn) favBtn.style.color = recipe.is_favorite ? 'var(--danger)' : 'var(--text-muted)';
+        var el = document.getElementById('rv-content');
+        if (el) el.innerHTML = recipeViewHtml(recipe);
+    }());
+}
+
+function recipeViewHtml(recipe) {
+    var alc = parseFloat(calcAlcohol(recipe.ingredients || []));
+    var basePortion = parseInt(recipe.servings) || 1;
+    var portions = state.recipePortions || basePortion;
+    var diffLabels = ['', 'Facile', 'Moyen', 'Difficile'];
+    var ratio = portions / basePortion;
+    var html = '';
+
+    if (recipe.photo) html += '<img src="' + esc(recipe.photo) + '" class="photo-thumb-lg" alt="">';
+
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">' +
+        '<span class="chip">' + diffDotsHtml(recipe.difficulty) + ' ' + (diffLabels[recipe.difficulty] || 'Facile') + '</span>' +
+        (recipe.prep_time ? '<span class="chip">' + icon('clock', 14) + ' ' + recipe.prep_time + ' min</span>' : '') +
+        (alc > 0 ? '<span class="alc-badge">' + icon('droplet', 14) + ' ' + alc + '° alc.</span>' : '') +
+    '</div>';
+
+    html += '<div class="card" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
+        '<span style="font-weight:500">' + icon('users', 16) + ' Portions</span>' +
+        '<div class="portions-control">' +
+            '<button type="button" class="portions-btn" onclick="changePortions(' + recipe.id + ',-1)">−</button>' +
+            '<span class="portions-value" id="portions-value">' + portions + '</span>' +
+            '<button type="button" class="portions-btn" onclick="changePortions(' + recipe.id + ',1)">+</button>' +
+        '</div>' +
+    '</div>';
+
+    if ((recipe.ingredients || []).length) {
+        html += '<div class="section-header"><span class="section-title">Ingrédients</span></div>' +
+            '<div class="card card-flush" style="margin-bottom:16px"><div style="padding:0 16px">';
+        recipe.ingredients.forEach(function (ing) {
+            var qty = (parseFloat(ing.quantity) || 0) * ratio;
+            var qtyStr = qty % 1 === 0 ? qty.toFixed(0) : qty.toFixed(1);
+            html += '<div class="ingredient-row">' +
+                '<span class="ingredient-qty" data-base-qty="' + esc(ing.quantity) + '" data-unit="' + esc(ing.unit) + '">' +
+                    qtyStr + ' ' + esc(ing.unit) +
+                '</span>' +
+                '<span class="ingredient-name">' + esc(ing.name) + '</span>' +
+                (parseFloat(ing.alcohol_pct) > 0 ? '<span class="ingredient-alc">' + ing.alcohol_pct + '°</span>' : '') +
+            '</div>';
+        });
+        html += '</div></div>';
+    }
+
+    if ((recipe.steps || []).length) {
+        html += '<div class="section-header"><span class="section-title">Préparation</span></div>' +
+            '<div class="card card-flush" style="margin-bottom:16px"><div style="padding:0 16px">';
+        recipe.steps.forEach(function (step) {
+            html += '<div class="step-item"><div class="step-number">' + step.step_order + '</div>' +
+                '<div class="step-text">' + esc(step.instruction) + '</div></div>';
+        });
+        html += '</div></div>';
+    }
+
+    if (recipe.notes) {
+        html += '<div class="section-header"><span class="section-title">Notes</span></div>' +
+            '<div class="card" style="margin-bottom:16px;font-size:14px;color:var(--text-muted);white-space:pre-wrap">' + esc(recipe.notes) + '</div>';
+    }
+
+    html += '<div class="section-header"><span class="section-title">Note personnelle</span></div>' +
+        '<div class="card" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">' +
+            '<div>' + starsHtml(recipe.user_rating) + '</div>' +
+            '<button class="btn btn-surface btn-sm" onclick="navigate(\'recipe-form\',{id:' + recipe.id + '})">' + icon('edit-2', 14) + ' Modifier</button>' +
+        '</div>';
+
+    return html;
+}
+
+function changePortions(recipeId, delta) {
+    var recipe = findRecipeById(recipeId);
+    if (!recipe) return;
+    var base = parseInt(recipe.servings) || 1;
+    state.recipePortions = Math.max(1, Math.min(50, (state.recipePortions || base) + delta));
+    var pv = document.getElementById('portions-value');
+    if (pv) pv.textContent = state.recipePortions;
+    var ratio = state.recipePortions / base;
+    document.querySelectorAll('[data-base-qty]').forEach(function (el) {
+        var qty = (parseFloat(el.getAttribute('data-base-qty')) || 0) * ratio;
+        el.textContent = (qty % 1 === 0 ? qty.toFixed(0) : qty.toFixed(1)) + ' ' + el.getAttribute('data-unit');
+    });
 }
 
 function renderRecipeForm(id) {
     render(
         '<div class="page">' +
             '<header class="app-header">' +
-                '<button class="back-btn" onclick="navigate(\'recipes\')">' + icon('arrow-left', 20) + '</button>' +
-                '<h1>' + (id ? 'Modifier' : 'Nouvelle') + ' recette</h1>' +
+                '<button class="back-btn" onclick="navigate(' + (id ? '\'recipe-view\',{id:' + id + '}' : '\'recipes\'') + ')">' + icon('arrow-left', 20) + '</button>' +
+                '<h1>' + (id ? 'Modifier la recette' : 'Nouvelle recette') + '</h1>' +
+                (id ? '<button class="icon-btn" style="color:var(--danger)" onclick="confirmDeleteRecipe(' + id + ')">' + icon('trash-2', 20) + '</button>' : '') +
             '</header>' +
-            '<div class="page-content"><div class="empty-state"><p>Étape 5</p></div></div>' +
+            '<div class="page-content page-content-no-nav" id="rf-inner">' +
+                '<div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div>' +
+            '</div>' +
         '</div>'
     );
+
+    (async function () {
+        var recipe = {};
+        if (id) {
+            recipe = findRecipeById(id) || {};
+            if (!recipe.id) {
+                var res = await api('recipes.php?id=' + id);
+                if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+                recipe = res;
+            }
+        }
+        var el = document.getElementById('rf-inner');
+        if (!el) return;
+        el.innerHTML = recipeFormStaticHtml(recipe);
+        var ings  = (recipe.ingredients && recipe.ingredients.length) ? recipe.ingredients : [{}];
+        var steps = (recipe.steps && recipe.steps.length) ? recipe.steps : [{}];
+        ings.forEach(function (ing)   { addIngRow(ing);   });
+        steps.forEach(function (step) { addStepRow(step); });
+    }());
 }
 
-// ─── Suggest (stub) ───────────────────────────────────────────────────────────
+function recipeFormStaticHtml(recipe) {
+    var diff = parseInt(recipe.difficulty) || 1;
+    var diffLabels = {1:'Facile', 2:'Moyen', 3:'Difficile'};
+    return '<form id="recipe-form" onsubmit="doSaveRecipe(event,' + (recipe.id || 0) + ')">' +
+        '<div class="section-header"><span class="section-title">Photo</span></div>' +
+        '<div class="photo-upload" id="recipe-photo-zone" onclick="document.getElementById(\'recipe-photo-input\').click()">' +
+            (recipe.photo ? '<img class="photo-preview" src="' + esc(recipe.photo) + '" alt="">' : icon('camera', 28) + '<span style="font-size:14px">Ajouter une photo</span>') +
+        '</div>' +
+        '<input type="file" id="recipe-photo-input" accept="image/*" style="display:none" onchange="uploadRecipePhoto(this)">' +
+        '<input type="hidden" id="recipe-photo-path" value="' + esc(recipe.photo || '') + '">' +
+        '<div class="section-header mt-16"><span class="section-title">Informations</span></div>' +
+        '<div class="input-group">' +
+            '<label>Nom <span class="required">*</span></label>' +
+            '<input class="input" type="text" name="name" placeholder="Ex : Mojito, Negroni…" value="' + esc(recipe.name || '') + '" required>' +
+        '</div>' +
+        '<div class="input-row">' +
+            '<div class="input-group"><label>Temps (min)</label><input class="input" type="number" name="prep_time" min="1" placeholder="5" value="' + esc(recipe.prep_time || '') + '"></div>' +
+            '<div class="input-group"><label>Portions</label><input class="input" type="number" name="servings" min="1" max="50" placeholder="1" value="' + esc(recipe.servings || 1) + '"></div>' +
+        '</div>' +
+        '<div class="input-group"><label>Difficulté</label>' +
+            '<div style="display:flex;gap:8px">' +
+                [1,2,3].map(function (d) {
+                    return '<button type="button" class="btn btn-sm diff-btn ' + (d === diff ? 'btn-primary' : 'btn-surface') +
+                           '" data-val="' + d + '" onclick="setDifficulty(' + d + ')">' + diffLabels[d] + '</button>';
+                }).join('') +
+            '</div>' +
+            '<input type="hidden" name="difficulty" id="difficulty-val" value="' + diff + '">' +
+        '</div>' +
+        '<div class="input-group"><label>Note personnelle — <strong id="recipe-rating-label">' + (recipe.user_rating ? recipe.user_rating + '/5' : '—') + '</strong></label>' +
+            '<div style="display:flex;align-items:center;gap:12px;margin-top:4px">' +
+                '<input type="range" name="user_rating" min="0" max="5" step="0.5" value="' + (recipe.user_rating || 0) + '" style="flex:1" ' +
+                       'oninput="document.getElementById(\'recipe-rating-label\').textContent=this.value>0?this.value+\'/5\':\'—\'">' +
+                '<span>' + ratingStarsStr(recipe.user_rating || 0) + '</span>' +
+            '</div>' +
+        '</div>' +
+        '<div class="input-group"><label>Notes / conseils</label>' +
+            '<textarea class="input" name="notes" rows="2" placeholder="Astuces, variantes…">' + esc(recipe.notes || '') + '</textarea>' +
+        '</div>' +
+        '<div class="section-header"><span class="section-title">Ingrédients</span>' +
+            '<button type="button" class="btn btn-surface btn-sm" onclick="addIngRow({})">' + icon('plus', 14) + ' Ajouter</button>' +
+        '</div>' +
+        '<div id="ingredients-container"></div>' +
+        '<div class="section-header"><span class="section-title">Étapes</span>' +
+            '<button type="button" class="btn btn-surface btn-sm" onclick="addStepRow({})">' + icon('plus', 14) + ' Ajouter</button>' +
+        '</div>' +
+        '<div id="steps-container"></div>' +
+        '<div style="height:8px"></div>' +
+        '<button class="btn btn-primary btn-full" type="submit" id="save-recipe-btn">' +
+            icon('check', 18) + (recipe.id ? ' Enregistrer les modifications' : ' Créer la recette') +
+        '</button>' +
+        (recipe.id ? '<button class="btn btn-outline-danger btn-full mt-8" type="button" onclick="confirmDeleteRecipe(' + recipe.id + ')">' + icon('trash-2', 16) + ' Supprimer la recette</button>' : '') +
+        '<div style="height:16px"></div>' +
+    '</form>';
+}
+
+function addIngRow(data) {
+    var container = document.getElementById('ingredients-container');
+    if (!container) return;
+    data = data || {};
+    var units = ['cl','ml','oz','pièce','c.à.s.','c.à.c.','g','trait','feuille'];
+    var div = document.createElement('div');
+    div.className = 'ing-row';
+    div.style.cssText = 'border:1px solid var(--border);border-radius:9px;padding:10px;margin-bottom:8px';
+    div.innerHTML =
+        '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+            '<input class="input" type="text" data-field="name" placeholder="Ingrédient *" value="' + esc(data.name || '') + '" style="flex:1">' +
+            '<button type="button" class="btn btn-danger btn-sm" style="flex-shrink:0" onclick="this.closest(\'.ing-row\').remove()">' + icon('x', 14) + '</button>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px">' +
+            '<input class="input" type="number" data-field="qty" placeholder="Qté" step="0.01" min="0.01" value="' + esc(data.quantity || '') + '" style="width:72px">' +
+            '<select class="input" data-field="unit" style="flex:1">' +
+                units.map(function (u) { return '<option value="' + u + '"' + (data.unit === u ? ' selected' : '') + '>' + u + '</option>'; }).join('') +
+            '</select>' +
+            '<input class="input" type="number" data-field="alc" placeholder="° alc" step="1" min="0" max="100" value="' + esc(data.alcohol_pct || '') + '" style="width:72px">' +
+        '</div>';
+    container.appendChild(div);
+}
+
+function addStepRow(data) {
+    var container = document.getElementById('steps-container');
+    if (!container) return;
+    data = data || {};
+    var num = container.querySelectorAll('.step-row').length + 1;
+    var div = document.createElement('div');
+    div.className = 'step-row';
+    div.style.cssText = 'display:flex;gap:8px;align-items:flex-start;margin-bottom:8px';
+    div.innerHTML =
+        '<div class="step-number" style="flex-shrink:0;margin-top:10px">' + num + '</div>' +
+        '<textarea class="input" data-field="instruction" rows="2" placeholder="Description de l\'étape…" style="flex:1">' + esc(data.instruction || '') + '</textarea>' +
+        '<button type="button" class="btn btn-danger btn-sm" style="flex-shrink:0;margin-top:2px" onclick="this.closest(\'.step-row\').remove();renumberSteps()">' + icon('x', 14) + '</button>';
+    container.appendChild(div);
+}
+
+function renumberSteps() {
+    document.querySelectorAll('.step-row .step-number').forEach(function (el, i) { el.textContent = i + 1; });
+}
+
+function getFormIngredients() {
+    return Array.from(document.querySelectorAll('.ing-row')).map(function (row, i) {
+        return {
+            name: row.querySelector('[data-field=name]').value.trim(),
+            quantity: parseFloat(row.querySelector('[data-field=qty]').value) || 0,
+            unit: row.querySelector('[data-field=unit]').value,
+            alcohol_pct: parseFloat(row.querySelector('[data-field=alc]').value) || 0,
+            sort_order: i
+        };
+    }).filter(function (i) { return i.name && i.quantity > 0; });
+}
+
+function getFormSteps() {
+    return Array.from(document.querySelectorAll('.step-row')).map(function (row, i) {
+        return { step_order: i + 1, instruction: row.querySelector('[data-field=instruction]').value.trim() };
+    }).filter(function (s) { return s.instruction; });
+}
+
+async function uploadRecipePhoto(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var zone = document.getElementById('recipe-photo-zone');
+    if (zone) zone.innerHTML = '<div class="loading-spinner"></div>';
+    var form = new FormData();
+    form.append('photo', file);
+    try {
+        var res = await fetch(API + '/recipes.php?action=upload_photo', {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: form
+        });
+        var data = await res.json();
+        if (data.error) { toast(data.error, 'error'); if (zone) zone.innerHTML = icon('camera', 28) + '<span>Ajouter une photo</span>'; return; }
+        document.getElementById('recipe-photo-path').value = data.path;
+        if (zone) zone.innerHTML = '<img class="photo-preview" src="' + esc(data.path) + '" alt="">';
+    } catch (e) {
+        toast('Erreur upload', 'error');
+        if (zone) zone.innerHTML = icon('camera', 28) + '<span>Ajouter une photo</span>';
+    }
+}
+
+async function doSaveRecipe(e, id) {
+    e.preventDefault();
+    var ingredients = getFormIngredients();
+    if (!ingredients.length) { toast('Ajoutez au moins un ingrédient', 'error'); return; }
+    var form = e.target;
+    var btn  = document.getElementById('save-recipe-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span> Enregistrement…';
+
+    var ratingVal = parseFloat(form.querySelector('[name=user_rating]').value) || 0;
+    var data = {
+        name:        form.querySelector('[name=name]').value.trim(),
+        photo:       document.getElementById('recipe-photo-path').value || null,
+        difficulty:  parseInt(document.getElementById('difficulty-val').value) || 1,
+        prep_time:   parseInt(form.querySelector('[name=prep_time]').value) || null,
+        servings:    parseInt(form.querySelector('[name=servings]').value) || 1,
+        notes:       form.querySelector('[name=notes]').value.trim(),
+        user_rating: ratingVal > 0 ? ratingVal : null,
+        ingredients: ingredients,
+        steps:       getFormSteps(),
+    };
+
+    var res;
+    if (id) { data.id = id; res = await put('recipes.php', data); }
+    else                     res = await post('recipes.php', data);
+
+    if (!res || res.error) {
+        toast((res && res.error) || 'Erreur', 'error');
+        btn.disabled = false;
+        btn.innerHTML = icon('check', 18) + (id ? ' Enregistrer les modifications' : ' Créer la recette');
+        return;
+    }
+    toast(id ? 'Recette modifiée !' : 'Recette créée !');
+    state.recipes = null;
+    navigate('recipes');
+}
+
+function confirmDeleteRecipe(id) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal confirm-dialog">' +
+            '<div style="color:var(--danger);margin-bottom:8px">' + icon('trash-2', 36) + '</div>' +
+            '<h3>Supprimer cette recette ?</h3>' +
+            '<p>Les ingrédients et étapes seront supprimés.</p>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-surface" onclick="document.querySelector(\'.modal-overlay\').remove()">Annuler</button>' +
+                '<button class="btn btn-danger" onclick="doDeleteRecipe(' + id + ')">Supprimer</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doDeleteRecipe(id) {
+    var overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
+    var res = await del('recipes.php?id=' + id);
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Recette supprimée');
+    state.recipes = null;
+    navigate('recipes');
+}
+
+// ─── Suggest ──────────────────────────────────────────────────────────────────
+function ingredientAvailable(ingName, bottles, stock) {
+    var ing = (ingName || '').toLowerCase().trim();
+    if (!ing) return true;
+
+    // Vérifie dans les bouteilles (fill_pct > 0)
+    var inBottles = (bottles || []).some(function (b) {
+        if (parseInt(b.fill_pct) <= 0) return false;
+        var targets = [
+            (b.name  || '').toLowerCase(),
+            (b.brand || '').toLowerCase(),
+            (b.type  || '').toLowerCase()
+        ];
+        return targets.some(function (t) {
+            return t && (t.indexOf(ing) !== -1 || ing.indexOf(t) !== -1);
+        });
+    });
+    if (inBottles) return true;
+
+    // Vérifie dans les ingrédients stock (quantity > 0)
+    return (stock || []).some(function (s) {
+        if (parseFloat(s.quantity) <= 0) return false;
+        var sName = (s.name || '').toLowerCase();
+        return sName.indexOf(ing) !== -1 || ing.indexOf(sName) !== -1;
+    });
+}
+
+function analyzeRecipes(recipes, bottles, stock) {
+    return recipes.map(function (r) {
+        var missing = (r.ingredients || [])
+            .filter(function (ing) { return !ingredientAvailable(ing.name, bottles, stock); })
+            .map(function (ing) { return ing.name; });
+        return { recipe: r, missing: missing, canMake: missing.length === 0, almost: missing.length > 0 && missing.length <= 2 };
+    }).filter(function (a) { return a.canMake || a.almost; });
+}
+
 function renderSuggest() {
+    if (state.suggestFilter === undefined) state.suggestFilter = 'all';
+    if (state.suggestSearch === undefined) state.suggestSearch = '';
+
     render(
         '<div class="page">' +
-            '<header class="app-header"><h1>' + icon('zap', 22) + ' Que faire ?</h1></header>' +
+            '<header class="app-header"><h1>' + icon('lightbulb', 20) + ' Idées cocktails</h1></header>' +
             '<div class="page-content">' +
-                '<div class="empty-state">' + icon('zap', 48) + '<p>Disponible à l\'étape 6</p></div>' +
+                '<div class="tabs" style="margin-bottom:10px" id="suggest-tabs">' +
+                    '<button class="tab' + (state.suggestFilter === 'all'    ? ' active' : '') + '" onclick="onSuggestFilter(\'all\')"    id="stab-all">Tout voir</button>' +
+                    '<button class="tab' + (state.suggestFilter === 'can'    ? ' active' : '') + '" onclick="onSuggestFilter(\'can\')"    id="stab-can">' + icon('circle-check', 13) + ' Prêt à faire</button>' +
+                    '<button class="tab' + (state.suggestFilter === 'almost' ? ' active' : '') + '" onclick="onSuggestFilter(\'almost\')" id="stab-almost">' + icon('circle-dot', 13) + ' Il manque peu</button>' +
+                '</div>' +
+                '<div class="search-bar" style="margin-bottom:14px">' +
+                    '<span class="search-bar-icon">' + icon('filter', 15) + '</span>' +
+                    '<input class="input" type="search" id="suggest-search" placeholder="Filtrer par ingrédient…" ' +
+                           'value="' + esc(state.suggestSearch) + '" oninput="onSuggestSearch(this.value)">' +
+                '</div>' +
+                '<div id="suggest-list"><div style="display:flex;justify-content:center;padding:40px">' +
+                    '<div class="loading-spinner"></div></div></div>' +
             '</div>' +
             navBar('suggest') +
         '</div>'
     );
+
+    (async function () {
+        var fetches = [];
+        if (!state.bottles)          fetches.push(api('bottles.php')); else fetches.push(Promise.resolve(null));
+        if (!state.recipes)          fetches.push(api('recipes.php')); else fetches.push(Promise.resolve(null));
+        if (!state.stockIngredients) fetches.push(api('stock.php'));   else fetches.push(Promise.resolve(null));
+
+        var results = await Promise.all(fetches);
+        if (results[0] && !results[0].error) state.bottles          = Array.isArray(results[0]) ? results[0] : [];
+        if (results[1] && !results[1].error) state.recipes           = Array.isArray(results[1]) ? results[1] : [];
+        if (results[2] && !results[2].error) state.stockIngredients  = Array.isArray(results[2]) ? results[2] : [];
+
+        if (!state.bottles || !state.recipes) {
+            showSuggestError('Erreur chargement des données');
+            return;
+        }
+        state.suggestAnalyzed = analyzeRecipes(state.recipes, state.bottles, state.stockIngredients || []);
+        refreshSuggestView();
+    }());
 }
 
-// ─── Personal (stub) ──────────────────────────────────────────────────────────
+function showSuggestError(msg) {
+    var el = document.getElementById('suggest-list');
+    if (el) el.innerHTML = '<div class="empty-state">' + icon('alert-circle', 40) + '<p>' + esc(msg) + '</p></div>';
+}
+
+function refreshSuggestView() {
+    var analyzed = state.suggestAnalyzed || [];
+    var filter   = state.suggestFilter  || 'all';
+    var search   = (state.suggestSearch || '').toLowerCase().trim();
+
+    // Apply availability filter
+    var filtered = analyzed.filter(function (a) {
+        if (filter === 'can')    return a.canMake;
+        if (filter === 'almost') return a.almost;
+        return true;
+    });
+
+    // Apply ingredient search filter (FAIRE-4)
+    if (search) {
+        filtered = filtered.filter(function (a) {
+            return (a.recipe.ingredients || []).some(function (ing) {
+                return (ing.name || '').toLowerCase().indexOf(search) !== -1;
+            });
+        });
+    }
+
+    // Update tab labels with counts
+    var all    = analyzed.length;
+    var canCnt = analyzed.filter(function (a) { return a.canMake; }).length;
+    var almCnt = analyzed.filter(function (a) { return a.almost;  }).length;
+    var tabAll = document.getElementById('stab-all');
+    var tabCan = document.getElementById('stab-can');
+    var tabAlm = document.getElementById('stab-almost');
+    if (tabAll) tabAll.innerHTML = 'Tout voir (' + all + ')';
+    if (tabCan) tabCan.innerHTML = icon('circle-check', 13) + ' Prêt à faire (' + canCnt + ')';
+    if (tabAlm) tabAlm.innerHTML = icon('circle-dot', 13) + ' Il manque peu (' + almCnt + ')';
+
+    var el = document.getElementById('suggest-list');
+    if (!el) return;
+
+    if (!state.bottles.length && !(state.stockIngredients || []).length) {
+        el.innerHTML = '<div class="empty-state">' + icon('wine', 44) +
+            '<p>Votre bar est vide</p>' +
+            '<small>Ajoutez vos bouteilles et ingrédients dans Mon Bar pour commencer</small>' +
+            '<button class="btn btn-primary mt-12" onclick="navigate(\'bottles\')">' + icon('wine', 16) + ' Aller à Mon Bar</button></div>';
+        return;
+    }
+    if (!state.recipes.length) {
+        el.innerHTML = '<div class="empty-state">' + icon('chef-hat', 44) +
+            '<p>Aucune recette enregistrée</p>' +
+            '<small>Créez vos recettes de cocktails pour voir ce que vous pouvez préparer</small>' +
+            '<button class="btn btn-primary mt-12" onclick="navigate(\'recipe-form\')">' + icon('plus', 16) + ' Créer une recette</button></div>';
+        return;
+    }
+    if (!filtered.length) {
+        var emptyMsg = filter === 'can'    ? 'Aucun cocktail réalisable pour l\'instant' :
+                       filter === 'almost' ? 'Aucun cocktail presque réalisable' :
+                       search             ? 'Aucune recette contenant cet ingrédient' :
+                       'Aucune correspondance';
+        var emptyHint = filter === 'can'
+            ? '<small>Consultez "Il manque peu" pour voir ce qu\'il vous faut acheter</small>'
+            : '';
+        el.innerHTML = '<div class="empty-state">' + icon('lightbulb', 44) +
+            '<p>' + emptyMsg + '</p>' + emptyHint +
+        '</div>';
+        return;
+    }
+
+    el.innerHTML = filtered.map(function (a) {
+        var r   = a.recipe;
+        var alc = parseFloat(calcAlcohol(r.ingredients));
+        var statusHtml = a.canMake
+            ? '<span style="display:flex;align-items:center;gap:4px;color:var(--success);font-size:12px;font-weight:600">' + icon('check-circle', 14) + ' Réalisable</span>'
+            : '<span style="display:flex;align-items:center;gap:4px;color:var(--warning);font-size:12px;font-weight:600">' + icon('alert-triangle', 14) + ' ' + a.missing.length + ' manquant' + (a.missing.length > 1 ? 's' : '') + '</span>';
+
+        var missingHtml = '';
+        if (a.almost) {
+            missingHtml =
+                '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' +
+                    a.missing.map(function (m) {
+                        return '<span class="chip chip-danger" style="font-size:11px;padding:2px 8px;cursor:pointer;display:inline-flex;align-items:center;gap:4px" ' +
+                               'onclick="addMissingIngredient(this,event)" data-name="' + esc(m) + '" ' +
+                               'title="Ajouter \'' + esc(m) + '\' à mon bar">' +
+                               icon('x', 11) + ' ' + esc(m) + ' ' + icon('plus-circle', 11) +
+                               '</span>';
+                    }).join('') +
+                '</div>' +
+                '<div style="font-size:11px;color:var(--text-muted);margin-top:5px;display:flex;align-items:center;gap:4px">' +
+                    icon('info', 11) + ' Touchez un ingrédient pour l\'ajouter à votre bar' +
+                '</div>';
+        }
+
+        return '<div class="card card-flush" style="margin-bottom:10px">' +
+            '<div style="display:flex;gap:12px;padding:14px;cursor:pointer" onclick="navigate(\'recipe-view\',{id:' + r.id + '})">' +
+                (r.photo
+                    ? '<img src="' + esc(r.photo) + '" style="width:66px;height:66px;object-fit:cover;border-radius:8px;flex-shrink:0">'
+                    : '<div style="width:66px;height:66px;background:var(--bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-light)">' + icon('chef-hat', 22) + '</div>') +
+                '<div style="flex:1;min-width:0">' +
+                    '<div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.name) + '</div>' +
+                    '<div style="margin-top:4px">' + statusHtml + '</div>' +
+                    missingHtml +
+                    (alc > 0 ? '<div style="margin-top:6px"><span class="alc-badge">' + icon('droplet', 12) + ' ' + alc + '°</span></div>' : '') +
+                '</div>' +
+                '<span style="color:var(--text-muted);flex-shrink:0;align-self:center">' + icon('chevron-right', 16) + '</span>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function onSuggestFilter(val) {
+    state.suggestFilter = val;
+    // Met à jour les classes des onglets
+    ['all','can','almost'].forEach(function (v) {
+        var btn = document.getElementById('stab-' + v);
+        if (btn) btn.className = 'tab' + (v === val ? ' active' : '');
+    });
+    refreshSuggestView();
+}
+
+function onSuggestSearch(val) {
+    state.suggestSearch = val;
+    refreshSuggestView();
+}
+
+function addMissingIngredient(el, event) {
+    event.stopPropagation();
+    var name = el.getAttribute('data-name');
+    navigate('ingredient-form', { prefillName: name });
+}
+
+// ─── Personal ─────────────────────────────────────────────────────────────────
 function renderPersonal() {
+    if (state.personalTab === undefined) state.personalTab = 'favorites';
+
     render(
         '<div class="page">' +
-            '<header class="app-header"><h1>' + icon('heart', 22) + ' Espace perso</h1></header>' +
+            '<header class="app-header"><h1>' + icon('bookmark', 20) + ' Mes Favoris</h1></header>' +
             '<div class="page-content">' +
-                '<div class="empty-state">' + icon('heart', 48) + '<p>Disponible à l\'étape 9</p></div>' +
+                '<div id="personal-stats" style="display:flex;gap:8px;margin-bottom:16px">' +
+                    [1,2,3,4].map(function () {
+                        return '<div class="card" style="flex:1;text-align:center;padding:12px 4px">' +
+                            '<div style="width:28px;height:28px;border-radius:50%;background:var(--border);margin:0 auto 4px;animation:spin 1s linear infinite"></div>' +
+                            '<div style="font-size:10px;color:var(--text-muted)">…</div></div>';
+                    }).join('') +
+                '</div>' +
+                '<div class="tabs" style="margin-bottom:14px">' +
+                    '<button class="tab' + (state.personalTab === 'favorites' ? ' active' : '') + '" id="ptab-favorites" onclick="onPersonalTab(\'favorites\')">' +
+                        icon('heart', 14) + ' Favoris</button>' +
+                    '<button class="tab' + (state.personalTab === 'rated' ? ' active' : '') + '" id="ptab-rated" onclick="onPersonalTab(\'rated\')">' +
+                        icon('star', 14) + ' Notées</button>' +
+                '</div>' +
+                '<div id="personal-list"><div style="display:flex;justify-content:center;padding:32px"><div class="loading-spinner"></div></div></div>' +
             '</div>' +
             navBar('personal') +
         '</div>'
     );
+
+    (async function () {
+        var fetches = [];
+        if (!state.recipes)     fetches.push(api('recipes.php'));     else fetches.push(Promise.resolve(null));
+        if (!state.bottles)     fetches.push(api('bottles.php'));     else fetches.push(Promise.resolve(null));
+        if (!state.productions) fetches.push(api('productions.php')); else fetches.push(Promise.resolve(null));
+
+        var results = await Promise.all(fetches);
+        if (results[0] && !results[0].error) state.recipes     = Array.isArray(results[0]) ? results[0] : [];
+        if (results[1] && !results[1].error) state.bottles     = Array.isArray(results[1]) ? results[1] : [];
+        if (results[2] && !results[2].error) state.productions = Array.isArray(results[2]) ? results[2] : [];
+
+        refreshPersonalView();
+    }());
 }
 
-// ─── Productions (stub) ───────────────────────────────────────────────────────
+function refreshPersonalView() {
+    var recipes  = state.recipes     || [];
+    var bottles  = state.bottles     || [];
+    var prods    = state.productions || [];
+    var tab      = state.personalTab || 'favorites';
+
+    var favorites = recipes.filter(function (r) { return r.is_favorite; });
+    var rated     = recipes.filter(function (r) { return r.user_rating && parseFloat(r.user_rating) > 0; });
+    var activeProd = prods.filter(function (p) { return p.status === 'in_progress'; }).length;
+    var lowBottles = bottles.filter(function (b) { return parseInt(b.fill_pct) <= 15; }).length;
+
+    // ── Stats ──────────────────────────────────────────────────────────────
+    var statsEl = document.getElementById('personal-stats');
+    if (statsEl) {
+        var statsData = [
+            { val: bottles.length, label: 'Bouteilles', ico: 'package',   color: 'var(--primary)', warn: lowBottles > 0, warnTip: lowBottles + ' à racheter' },
+            { val: recipes.length, label: 'Recettes',   ico: 'book-open', color: 'var(--accent)'   },
+            { val: favorites.length, label: 'Favoris',  ico: 'heart',     color: 'var(--danger)'   },
+            { val: activeProd,  label: 'En cours',       ico: 'tool',      color: 'var(--warning)'  },
+        ];
+        statsEl.innerHTML = statsData.map(function (s) {
+            return '<div class="card" style="flex:1;text-align:center;padding:14px 4px;cursor:pointer">' +
+                '<div style="font-size:24px;font-weight:700;color:' + s.color + '">' + s.val + '</div>' +
+                '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;white-space:nowrap">' + s.label + '</div>' +
+                (s.warn ? '<div style="font-size:10px;color:var(--danger);margin-top:1px">' + s.warnTip + '</div>' : '') +
+            '</div>';
+        }).join('');
+    }
+
+    // ── Tabs ───────────────────────────────────────────────────────────────
+    var tabFav   = document.getElementById('ptab-favorites');
+    var tabRated = document.getElementById('ptab-rated');
+    if (tabFav)   tabFav.innerHTML   = icon('heart', 14) + ' Favoris (' + favorites.length + ')';
+    if (tabRated) tabRated.innerHTML = icon('star', 14)  + ' Notées (' + rated.length + ')';
+    if (tabFav)   tabFav.className   = 'tab' + (tab === 'favorites' ? ' active' : '');
+    if (tabRated) tabRated.className = 'tab' + (tab === 'rated'     ? ' active' : '');
+
+    var items = tab === 'favorites' ? favorites : rated;
+    var el    = document.getElementById('personal-list');
+    if (!el) return;
+
+    if (!items.length) {
+        var isFav = tab === 'favorites';
+        el.innerHTML = '<div class="empty-state">' +
+            icon(isFav ? 'heart' : 'star', 44) +
+            '<p>' + (isFav ? 'Aucun favori' : 'Aucune recette notée') + '</p>' +
+            '<small>' + (isFav
+                ? 'Appuyez sur ♡ dans une recette pour l\'ajouter'
+                : 'Attribuez une note depuis le formulaire de recette') + '</small>' +
+            (recipes.length === 0
+                ? '<button class="btn btn-primary mt-12" onclick="navigate(\'recipe-form\')">' + icon('plus', 16) + ' Créer une recette</button>'
+                : '') +
+        '</div>';
+        return;
+    }
+
+    var diffLabels = ['', 'Facile', 'Moyen', 'Difficile'];
+    el.innerHTML = items.map(function (r) {
+        var alc = parseFloat(calcAlcohol(r.ingredients));
+        return '<div class="card card-flush" style="margin-bottom:10px">' +
+            '<div style="display:flex;gap:12px;padding:14px;cursor:pointer" onclick="navigate(\'recipe-view\',{id:' + r.id + '})">' +
+                (r.photo
+                    ? '<img src="' + esc(r.photo) + '" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0">'
+                    : '<div style="width:72px;height:72px;background:var(--bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-light)">' + icon('chef-hat', 24) + '</div>') +
+                '<div style="flex:1;min-width:0">' +
+                    '<div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.name) + '</div>' +
+                    '<div style="display:flex;gap:8px;margin-top:4px;font-size:13px;color:var(--text-muted);align-items:center;flex-wrap:wrap">' +
+                        diffDotsHtml(r.difficulty) + ' <span class="text-xs">' + (diffLabels[r.difficulty] || 'Facile') + '</span>' +
+                        (r.prep_time ? ' <span style="display:flex;align-items:center;gap:2px">' + icon('clock', 12) + ' ' + r.prep_time + 'min</span>' : '') +
+                    '</div>' +
+                    (tab === 'rated' && r.user_rating
+                        ? '<div style="margin-top:5px">' + starsHtml(r.user_rating) + '</div>'
+                        : '') +
+                    (alc > 0 ? '<div style="margin-top:5px"><span class="alc-badge">' + icon('droplet', 12) + ' ' + alc + '°</span></div>' : '') +
+                '</div>' +
+                '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0">' +
+                    '<button id="fav-' + r.id + '" style="font-size:20px;padding:6px;color:' +
+                            (r.is_favorite ? 'var(--danger)' : 'var(--text-muted)') + '" ' +
+                           'onclick="toggleFavoriteRecipe(' + r.id + ',event)">' +
+                        (r.is_favorite ? '♥' : '♡') +
+                    '</button>' +
+                    '<span style="color:var(--text-muted)">' + icon('chevron-right', 16) + '</span>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function onPersonalTab(tab) {
+    state.personalTab = tab;
+    refreshPersonalView();
+}
+
+// ─── Productions ──────────────────────────────────────────────────────────────
+function isStepOverdue(step) {
+    if (step.status !== 'in_progress' || !step.started_at) return false;
+    var end = new Date(step.started_at);
+    end.setDate(end.getDate() + parseInt(step.duration_days || 0));
+    end.setHours(0, 0, 0, 0);
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    return end < today;
+}
+
+function getDaysRemaining(step) {
+    if (!step.started_at) return null;
+    var end = new Date(step.started_at);
+    end.setDate(end.getDate() + parseInt(step.duration_days || 0));
+    end.setHours(0, 0, 0, 0);
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.round((end - today) / 86400000);
+}
+
+function formatDate(s) {
+    if (!s) return '';
+    try { return new Date(s).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }); }
+    catch (e) { return s; }
+}
+
+function findProductionById(id) {
+    if (!state.productions) return null;
+    return state.productions.find(function (p) { return p.id == id; }) || null;
+}
+
 function renderProductions() {
     render(
         '<div class="page">' +
-            '<header class="app-header"><h1>' + icon('tool', 22) + ' Maison</h1></header>' +
+            '<header class="app-header"><h1>' + icon('flask-conical', 20) + ' Mes Brassages</h1></header>' +
             '<div class="page-content">' +
-                '<div class="empty-state">' + icon('tool', 48) + '<p>Disponible à l\'étape 7</p></div>' +
+                '<div id="prod-list"><div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div></div>' +
             '</div>' +
+            '<button class="fab" onclick="navigate(\'production-form\')" title="Nouvelle production">' + icon('plus', 24) + '</button>' +
             navBar('productions') +
         '</div>'
     );
+    (async function () {
+        var res = await api('productions.php');
+        if (!res || res.error) {
+            document.getElementById('prod-list').innerHTML =
+                '<div class="empty-state">' + icon('alert-circle', 40) + '<p>' + esc((res && res.error) || 'Erreur') + '</p></div>';
+            return;
+        }
+        state.productions = Array.isArray(res) ? res : [];
+        refreshProductionsView();
+    }());
+}
+
+function refreshProductionsView() {
+    var prods = state.productions || [];
+    var el = document.getElementById('prod-list');
+    if (!el) return;
+    if (!prods.length) {
+        el.innerHTML = '<div class="empty-state">' + icon('tool', 44) +
+            '<p>Aucune production</p><small>Suivez vos alcools faits maison ↓</small></div>';
+        return;
+    }
+    el.innerHTML = prods.map(function (p) {
+        var steps = p.steps || [];
+        var done  = steps.filter(function (s) { return s.status === 'done'; }).length;
+        var total = steps.length;
+        var cur   = steps.find(function (s)   { return s.status === 'in_progress'; });
+        var overdue   = cur && isStepOverdue(cur);
+        var allDone   = total > 0 && done === total;
+        var isReady   = p.status === 'in_progress' && allDone;
+        var isFin     = p.status === 'finished';
+        var isAban    = p.status === 'abandoned';
+        var pct = total > 0 ? Math.round(done / total * 100) : 0;
+
+        var badge = isFin    ? '<span class="chip chip-success">'  + icon('check-circle', 12) + ' Terminé</span>'  :
+                    isAban   ? '<span class="chip">'                + icon('x-circle', 12)     + ' Abandonné</span>':
+                    isReady  ? '<span class="chip chip-success">'  + icon('star', 12)          + ' Prêt !</span>'   :
+                    overdue  ? '<span class="chip chip-warning">'  + icon('alert-triangle',12) + ' À valider</span>':
+                               '<span class="chip chip-primary">'  + icon('refresh-cw', 12)   + ' En cours</span>';
+
+        return '<div class="production-card card" style="margin-bottom:10px" onclick="navigate(\'production-view\',{id:' + p.id + '})">' +
+            '<div class="production-header">' +
+                '<div>' +
+                    '<div class="production-name">' + esc(p.name) + '</div>' +
+                    '<div class="production-date">' + (p.batch_date ? 'Fournée : ' + formatDate(p.batch_date) : 'Sans date de fournée') + '</div>' +
+                '</div>' +
+                badge +
+            '</div>' +
+            (cur ? '<div class="text-sm text-muted" style="margin-bottom:8px">' + icon('chevron-right', 13) + ' ' + esc(cur.name) + '</div>' : '') +
+            (total > 0 ?
+                '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)">' +
+                    '<div class="progress-bar" style="flex:1"><div class="progress-bar-inner ' + (isFin ? 'pb-success' : '') + '" style="width:' + pct + '%"></div></div>' +
+                    done + '/' + total + ' étape' + (total > 1 ? 's' : '') +
+                '</div>'
+            : '') +
+        '</div>';
+    }).join('');
 }
 
 function renderProductionView(id) {
@@ -424,63 +1843,782 @@ function renderProductionView(id) {
         '<div class="page">' +
             '<header class="app-header">' +
                 '<button class="back-btn" onclick="navigate(\'productions\')">' + icon('arrow-left', 20) + '</button>' +
-                '<h1>Production</h1>' +
+                '<h1 id="pv-title" style="font-size:15px">…</h1>' +
+                '<button class="icon-btn" id="pv-edit-btn" onclick="navigate(\'production-form\',{id:' + id + '})" style="display:none">' + icon('edit-2', 20) + '</button>' +
+                '<button class="icon-btn" style="color:var(--danger)" onclick="confirmDeleteProduction(' + id + ')">' + icon('trash-2', 20) + '</button>' +
             '</header>' +
-            '<div class="page-content"><div class="empty-state"><p>Étape 7</p></div></div>' +
+            '<div class="page-content page-content-no-nav" id="pv-content">' +
+                '<div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div>' +
+            '</div>' +
         '</div>'
     );
+    (async function () {
+        var res = await api('productions.php?id=' + id);
+        if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+        var prod = res;
+        // Sync cache
+        if (!state.productions) state.productions = [];
+        var idx = state.productions.findIndex(function (p) { return p.id == id; });
+        if (idx >= 0) state.productions[idx] = prod; else state.productions.push(prod);
+
+        var titleEl = document.getElementById('pv-title');
+        if (titleEl) titleEl.textContent = prod.name;
+        var editBtn = document.getElementById('pv-edit-btn');
+        if (editBtn && prod.status === 'in_progress') editBtn.style.display = 'flex';
+
+        var el = document.getElementById('pv-content');
+        if (el) el.innerHTML = productionViewHtml(prod);
+    }());
+}
+
+function productionViewHtml(prod) {
+    var steps = prod.steps || [];
+    var isFin  = prod.status === 'finished';
+    var isAban = prod.status === 'abandoned';
+    var allDone = steps.length > 0 && steps.every(function (s) { return s.status === 'done'; });
+    var html = '';
+
+    // Status + date
+    var badge = isFin  ? '<span class="chip chip-success">'  + icon('check-circle', 14) + ' Terminé</span>'  :
+                isAban ? '<span class="chip">'                + icon('x-circle', 14)     + ' Abandonné</span>':
+                allDone? '<span class="chip chip-success">'  + icon('star', 14)          + ' Prêt à finir</span>' :
+                         '<span class="chip chip-primary">'  + icon('refresh-cw', 14)   + ' En cours</span>';
+
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
+        badge +
+        (prod.batch_date ? '<span class="text-sm text-muted">' + formatDate(prod.batch_date) + '</span>' : '') +
+    '</div>';
+
+    // Info card
+    var hasInfo = prod.quantity_ml || prod.batch_date;
+    var hasPrices = prod.cost_price || prod.sell_price;
+    if (hasInfo || hasPrices) {
+        html += '<div class="card" style="margin-bottom:16px">';
+        if (prod.quantity_ml) html += '<div class="info-row"><span class="info-row-label">Quantité</span><span class="info-row-value">' + prod.quantity_ml + ' ml</span></div>';
+        if (hasPrices) {
+            if (prod.cost_price) html += '<div class="info-row"><span class="info-row-label">Prix de revient</span><span class="info-row-value">' + parseFloat(prod.cost_price).toFixed(2) + ' €</span></div>';
+            if (prod.sell_price) html += '<div class="info-row"><span class="info-row-label">Prix de vente envisagé</span><span class="info-row-value">' + parseFloat(prod.sell_price).toFixed(2) + ' €</span></div>';
+            if (prod.cost_price && prod.sell_price) {
+                var profit = parseFloat(prod.sell_price) - parseFloat(prod.cost_price);
+                var margin = prod.cost_price > 0 ? (profit / prod.cost_price * 100).toFixed(0) : 0;
+                var color  = profit >= 0 ? 'var(--success)' : 'var(--danger)';
+                var sign   = profit >= 0 ? '+' : '';
+                html += '<div class="info-row" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">' +
+                    '<span class="info-row-label" style="font-weight:600">Bénéfice</span>' +
+                    '<span class="info-row-value" style="color:' + color + ';font-weight:700">' + sign + parseFloat(profit).toFixed(2) + ' € (' + sign + margin + '%)</span>' +
+                '</div>';
+            }
+        }
+        html += '</div>';
+    }
+
+    // Étapes
+    html += '<div class="section-header"><span class="section-title">Étapes</span></div>';
+    if (!steps.length) {
+        html += '<div class="empty-state" style="padding:24px">' + icon('list', 32) + '<p>Aucune étape définie</p></div>';
+    } else {
+        html += '<div class="card card-flush" style="margin-bottom:16px"><div style="padding:8px 16px">';
+        html += '<div class="step-timeline">';
+        steps.forEach(function (step) {
+            var overdue   = isStepOverdue(step);
+            var remaining = getDaysRemaining(step);
+            var cls = step.status === 'done' ? 'ts-done' :
+                      step.status === 'in_progress' ? (overdue ? 'ts-overdue' : 'ts-active') : '';
+
+            var info = step.status === 'done'
+                ? '<span style="color:var(--success);font-size:12px">' + icon('check', 11) + ' Terminé</span>'
+                : step.status === 'in_progress'
+                    ? (overdue
+                        ? '<span style="color:var(--danger);font-size:12px">' + icon('alert-triangle', 11) + ' Dépassé de ' + Math.abs(remaining) + ' j</span>'
+                        : '<span style="color:var(--primary);font-size:12px">' + icon('clock', 11) + ' ' + (remaining === 0 ? 'Fin aujourd\'hui' : remaining + ' j restant(s)') + '</span>')
+                    : '<span style="color:var(--text-muted);font-size:12px">' + step.duration_days + ' jour(s)</span>';
+
+            html += '<div class="timeline-step ' + cls + '">' +
+                '<div class="timeline-step-name">' + esc(step.name) + '</div>' +
+                '<div class="timeline-step-info">' + info + '</div>';
+
+            // Boutons d'action pour l'étape en cours
+            if (step.status === 'in_progress' && prod.status === 'in_progress') {
+                html += '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
+                    '<button class="btn btn-accent btn-sm" onclick="doNextStep(' + prod.id + ')">' + icon('check', 14) + ' Étape suivante</button>' +
+                    '<button class="btn btn-surface btn-sm" onclick="showExtendStep(' + step.id + ',' + step.duration_days + ')">' + icon('plus', 14) + ' Rallonger</button>' +
+                '</div>';
+            }
+            html += '</div>';
+        });
+        html += '</div></div></div>';
+    }
+
+    // Boutons de clôture
+    if (prod.status === 'in_progress') {
+        html += '<div style="display:flex;gap:10px;margin-bottom:20px">' +
+            '<button class="btn btn-accent" style="flex:1" onclick="confirmFinishProduction(' + prod.id + ')">' + icon('check-circle', 16) + ' Terminer</button>' +
+            '<button class="btn btn-outline-danger" style="flex:1" onclick="confirmAbandonProduction(' + prod.id + ')">' + icon('x-circle', 16) + ' Abandonner</button>' +
+        '</div>';
+    }
+
+    // Journal
+    html += '<div class="section-header"><span class="section-title">Journal de dégustation</span></div>';
+    var journal = prod.journal || [];
+    html += '<div class="card card-flush" style="margin-bottom:16px">';
+    if (!journal.length) {
+        html += '<div style="padding:16px;color:var(--text-muted);font-size:14px;text-align:center">Aucune note</div>';
+    } else {
+        html += '<div style="padding:0 16px">';
+        journal.forEach(function (e) {
+            html += '<div class="journal-entry"><div class="journal-date">' + formatDate(e.tasted_at) + '</div>' +
+                '<div class="journal-text">' + esc(e.note) + '</div></div>';
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+
+    if (!isAban) {
+        html += '<div class="card" style="margin-bottom:24px">' +
+            '<div class="input-group" style="margin-bottom:10px">' +
+                '<label>Ajouter une note</label>' +
+                '<textarea class="input" id="journal-note" rows="3" placeholder="Goût, couleur, évolution…"></textarea>' +
+            '</div>' +
+            '<button class="btn btn-primary" onclick="doAddJournal(' + prod.id + ')">' + icon('plus', 16) + ' Ajouter</button>' +
+        '</div>';
+    }
+
+    return html;
 }
 
 function renderProductionForm(id) {
     render(
         '<div class="page">' +
             '<header class="app-header">' +
-                '<button class="back-btn" onclick="navigate(\'productions\')">' + icon('arrow-left', 20) + '</button>' +
-                '<h1>' + (id ? 'Modifier' : 'Nouvelle') + ' production</h1>' +
+                '<button class="back-btn" onclick="navigate(' + (id ? '\'production-view\',{id:' + id + '}' : '\'productions\'') + ')">' + icon('arrow-left', 20) + '</button>' +
+                '<h1>' + (id ? 'Modifier la production' : 'Nouvelle production') + '</h1>' +
+                (id ? '<button class="icon-btn" style="color:var(--danger)" onclick="confirmDeleteProduction(' + id + ')">' + icon('trash-2', 20) + '</button>' : '') +
             '</header>' +
-            '<div class="page-content"><div class="empty-state"><p>Étape 7</p></div></div>' +
+            '<div class="page-content page-content-no-nav" id="pf-inner">' +
+                '<div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div>' +
+            '</div>' +
         '</div>'
     );
+    (async function () {
+        var prod = {};
+        if (id) {
+            prod = findProductionById(id) || {};
+            if (!prod.id) {
+                var res = await api('productions.php?id=' + id);
+                if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+                prod = res;
+            }
+        }
+        var el = document.getElementById('pf-inner');
+        if (!el) return;
+        el.innerHTML = productionFormHtml(prod);
+        if (!id) {
+            addProdStepRow({});
+        }
+    }());
 }
 
-// ─── Settings (stub) ──────────────────────────────────────────────────────────
+function productionFormHtml(prod) {
+    var isEdit = !!prod.id;
+    return '<form id="prod-form" onsubmit="doSaveProduction(event,' + (prod.id || 0) + ')">' +
+        '<div class="section-header"><span class="section-title">Informations</span></div>' +
+        '<div class="input-group"><label>Nom <span class="required">*</span></label>' +
+            '<input class="input" type="text" name="name" placeholder="Ex : Limoncello maison, Bière brune…" value="' + esc(prod.name || '') + '" required>' +
+        '</div>' +
+        '<div class="input-row">' +
+            '<div class="input-group"><label>Date de fournée</label>' +
+                '<input class="input" type="date" name="batch_date" value="' + esc(prod.batch_date || '') + '"></div>' +
+            '<div class="input-group"><label>Quantité (ml)</label>' +
+                '<input class="input" type="number" name="quantity_ml" min="0" step="100" placeholder="750" value="' + esc(prod.quantity_ml || '') + '"></div>' +
+        '</div>' +
+        '<div class="section-header"><span class="section-title">Économies</span></div>' +
+        '<div class="input-row">' +
+            '<div class="input-group"><label>Prix de revient (€)</label>' +
+                '<input class="input" type="number" name="cost_price" min="0" step="0.01" placeholder="0.00" value="' + esc(prod.cost_price || '') + '"></div>' +
+            '<div class="input-group"><label>Prix de vente (€)</label>' +
+                '<input class="input" type="number" name="sell_price" min="0" step="0.01" placeholder="0.00" value="' + esc(prod.sell_price || '') + '"></div>' +
+        '</div>' +
+        (!isEdit ?
+            '<div class="section-header"><span class="section-title">Étapes de fabrication</span>' +
+                '<button type="button" class="btn btn-surface btn-sm" onclick="addProdStepRow({})">' + icon('plus', 14) + ' Ajouter</button>' +
+            '</div>' +
+            '<div id="prod-steps-container"></div>' +
+            '<p class="input-hint" style="margin-bottom:16px">La première étape démarre automatiquement à la création.</p>'
+        :
+            '<div class="card" style="margin-bottom:16px;background:var(--bg)">' +
+                '<div style="display:flex;gap:10px;align-items:center;color:var(--text-muted);font-size:13px">' +
+                    icon('info', 16) +
+                    '<span>Les étapes ne sont pas modifiables. Utilisez les boutons dans la fiche production pour avancer ou rallonger.</span>' +
+                '</div>' +
+            '</div>'
+        ) +
+        '<button class="btn btn-primary btn-full" type="submit" id="save-prod-btn">' +
+            icon('check', 18) + (isEdit ? ' Enregistrer' : ' Créer la production') +
+        '</button>' +
+        '<div style="height:16px"></div>' +
+    '</form>';
+}
+
+function addProdStepRow(data) {
+    var container = document.getElementById('prod-steps-container');
+    if (!container) return;
+    data = data || {};
+    var num = container.querySelectorAll('.prod-step-row').length + 1;
+    var div = document.createElement('div');
+    div.className = 'prod-step-row';
+    div.style.cssText = 'display:flex;gap:8px;align-items:flex-start;margin-bottom:8px';
+    div.innerHTML =
+        '<div class="step-number" style="flex-shrink:0;margin-top:10px">' + num + '</div>' +
+        '<input class="input" type="text" data-field="name" placeholder="Nom de l\'étape *" value="' + esc(data.name || '') + '" style="flex:2">' +
+        '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0">' +
+            '<input class="input" type="number" data-field="days" placeholder="Durée" min="1" max="999" value="' + esc(data.duration_days || '') + '" style="width:72px">' +
+            '<span style="font-size:13px;color:var(--text-muted)">j</span>' +
+        '</div>' +
+        '<button type="button" class="btn btn-danger btn-sm" style="flex-shrink:0;margin-top:2px" ' +
+               'onclick="this.closest(\'.prod-step-row\').remove();renumberProdSteps()">' + icon('x', 14) + '</button>';
+    container.appendChild(div);
+}
+
+function renumberProdSteps() {
+    document.querySelectorAll('.prod-step-row .step-number').forEach(function (el, i) { el.textContent = i + 1; });
+}
+
+function getProdFormSteps() {
+    return Array.from(document.querySelectorAll('.prod-step-row')).map(function (row, i) {
+        return { name: row.querySelector('[data-field=name]').value.trim(), duration_days: parseInt(row.querySelector('[data-field=days]').value) || 1, sort_order: i };
+    }).filter(function (s) { return s.name; });
+}
+
+async function doSaveProduction(e, id) {
+    e.preventDefault();
+    var form = e.target;
+    var btn  = document.getElementById('save-prod-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span> Enregistrement…';
+
+    var data = {
+        name:        form.querySelector('[name=name]').value.trim(),
+        batch_date:  form.querySelector('[name=batch_date]').value || null,
+        quantity_ml: form.querySelector('[name=quantity_ml]').value || null,
+        cost_price:  form.querySelector('[name=cost_price]').value  || null,
+        sell_price:  form.querySelector('[name=sell_price]').value  || null,
+    };
+
+    if (!id) {
+        var steps = getProdFormSteps();
+        if (!steps.length) { toast('Ajoutez au moins une étape', 'error'); btn.disabled = false; btn.innerHTML = icon('check', 18) + ' Créer la production'; return; }
+        data.steps = steps;
+    }
+
+    var res;
+    if (id) { data.id = id; res = await put('productions.php', data); }
+    else                     res = await post('productions.php', data);
+
+    if (!res || res.error) {
+        toast((res && res.error) || 'Erreur', 'error');
+        btn.disabled = false;
+        btn.innerHTML = icon('check', 18) + (id ? ' Enregistrer' : ' Créer la production');
+        return;
+    }
+    toast(id ? 'Production modifiée !' : 'Production créée !');
+    state.productions = null;
+    if (id) navigate('production-view', { id: id });
+    else    navigate('productions');
+}
+
+function showExtendStep(stepId, currentDays) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal confirm-dialog">' +
+            '<div style="margin-bottom:8px;color:var(--primary)">' + icon('clock', 32) + '</div>' +
+            '<h3>Rallonger l\'étape</h3>' +
+            '<p>Durée actuelle : ' + currentDays + ' jour(s)</p>' +
+            '<div class="input-group" style="margin:12px 0;text-align:left">' +
+                '<label>Jours à ajouter</label>' +
+                '<input class="input" type="number" id="extend-days-input" min="1" max="365" value="7">' +
+            '</div>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-surface" onclick="document.querySelector(\'.modal-overlay\').remove()">Annuler</button>' +
+                '<button class="btn btn-primary" onclick="doExtendStep(' + stepId + ')">Confirmer</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doNextStep(prodId) {
+    var res = await post('productions.php?action=next_step&id=' + prodId, {});
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Étape validée !');
+    state.productions = null;
+    navigate('production-view', { id: prodId });
+}
+
+async function doExtendStep(stepId) {
+    var overlay = document.querySelector('.modal-overlay');
+    var days = parseInt(document.getElementById('extend-days-input').value) || 7;
+    if (overlay) overlay.remove();
+    var res = await post('productions.php?action=extend_step', { step_id: stepId, days: days });
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Durée rallongée de ' + days + ' jour(s)');
+    state.productions = null;
+    // Trouver le prodId depuis le DOM est complexe — on re-fetch le cache au prochain navigate
+    // Pour refresh immédiat, on re-navigue
+    var pvTitle = document.getElementById('pv-title');
+    if (pvTitle) {
+        // On est sur la vue production — retrouver l'id depuis state
+        var prod = state.productions && state.productions.find(function (p) {
+            return p.steps && p.steps.some(function (s) { return s.id == stepId; });
+        });
+        if (prod) navigate('production-view', { id: prod.id });
+    }
+}
+
+async function doAddJournal(prodId) {
+    var note = (document.getElementById('journal-note') || {}).value || '';
+    if (!note.trim()) { toast('Écrivez une note avant d\'ajouter', 'error'); return; }
+    var res = await post('productions.php?action=add_journal', { production_id: prodId, note: note.trim() });
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Note ajoutée !');
+    state.productions = null;
+    navigate('production-view', { id: prodId });
+}
+
+function confirmFinishProduction(id) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal confirm-dialog">' +
+            '<div style="color:var(--success);margin-bottom:8px">' + icon('check-circle', 36) + '</div>' +
+            '<h3>Terminer la production ?</h3>' +
+            '<p>La production sera marquée comme terminée.</p>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-surface" onclick="document.querySelector(\'.modal-overlay\').remove()">Annuler</button>' +
+                '<button class="btn btn-accent" onclick="doFinishProduction(' + id + ')">Terminer</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doFinishProduction(id) {
+    var overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
+    var res = await post('productions.php?action=finish&id=' + id, {});
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Production terminée !');
+    state.productions = null;
+    navigate('production-view', { id: id });
+}
+
+function confirmAbandonProduction(id) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal confirm-dialog">' +
+            '<div style="color:var(--danger);margin-bottom:8px">' + icon('x-circle', 36) + '</div>' +
+            '<h3>Abandonner la production ?</h3>' +
+            '<p>Cette action est irréversible. La production sera marquée comme abandonnée.</p>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-surface" onclick="document.querySelector(\'.modal-overlay\').remove()">Annuler</button>' +
+                '<button class="btn btn-danger" onclick="doAbandonProduction(' + id + ')">Abandonner</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doAbandonProduction(id) {
+    var overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
+    var res = await post('productions.php?action=abandon&id=' + id, {});
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Production abandonnée');
+    state.productions = null;
+    navigate('productions');
+}
+
+function confirmDeleteProduction(id) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal confirm-dialog">' +
+            '<div style="color:var(--danger);margin-bottom:8px">' + icon('trash-2', 36) + '</div>' +
+            '<h3>Supprimer la production ?</h3>' +
+            '<p>Le journal et toutes les étapes seront supprimés.</p>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-surface" onclick="document.querySelector(\'.modal-overlay\').remove()">Annuler</button>' +
+                '<button class="btn btn-danger" onclick="doDeleteProduction(' + id + ')">Supprimer</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doDeleteProduction(id) {
+    var overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
+    var res = await del('productions.php?id=' + id);
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Production supprimée');
+    state.productions = null;
+    navigate('productions');
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
 function renderSettings() {
     render(
         '<div class="page">' +
             '<header class="app-header">' +
                 '<button class="back-btn" onclick="navigate(\'bottles\')">' + icon('arrow-left', 20) + '</button>' +
-                '<h1>' + icon('settings', 22) + ' Réglages</h1>' +
+                '<h1>' + icon('settings', 20) + ' Réglages</h1>' +
             '</header>' +
-            '<div class="page-content">' +
-                '<div class="card" style="margin-bottom:12px;padding:16px">' +
-                    '<div style="display:flex;align-items:center;gap:12px">' +
-                        '<div class="avatar">' + esc(currentUser && currentUser.username ? currentUser.username[0].toUpperCase() : '?') + '</div>' +
-                        '<div>' +
-                            '<div style="font-weight:600">' + esc(currentUser && currentUser.username) + '</div>' +
-                            '<div style="font-size:13px;color:var(--text-muted)">Connecté</div>' +
-                        '</div>' +
-                    '</div>' +
-                '</div>' +
-                '<button class="btn btn-outline btn-full" onclick="logout()">' +
-                    icon('log-out', 18) + ' Se déconnecter' +
-                '</button>' +
-                '<div class="empty-state" style="margin-top:24px">' +
-                    icon('share-2', 36) + '<p>Partage de bar — étape 8</p>' +
-                '</div>' +
+            '<div class="page-content page-content-no-nav" id="settings-content">' +
+                '<div style="display:flex;justify-content:center;padding:40px"><div class="loading-spinner"></div></div>' +
             '</div>' +
         '</div>'
     );
+
+    (async function () {
+        var results = await Promise.all([api('shares.php'), api('auth.php?action=users')]);
+        var sharesRes = results[0];
+        var usersRes  = results[1];
+
+        var shares = (sharesRes && !sharesRes.error) ? sharesRes : { outgoing: [], incoming: [] };
+        var users  = Array.isArray(usersRes) ? usersRes : [];
+
+        var el = document.getElementById('settings-content');
+        if (el) el.innerHTML = settingsHtml(shares, users);
+    }());
+}
+
+function settingsHtml(shares, users) {
+    var outgoing = shares.outgoing || [];
+    var incoming = shares.incoming || [];
+    var uname    = (currentUser && currentUser.username) || '?';
+    var html     = '';
+
+    // ── Compte ──────────────────────────────────────────────────────────────
+    html += '<div class="section-header"><span class="section-title">Mon compte</span></div>';
+    html += '<div class="card" style="margin-bottom:16px">' +
+        '<div style="display:flex;align-items:center;gap:14px">' +
+            '<div class="avatar avatar-lg">' + esc(uname[0].toUpperCase()) + '</div>' +
+            '<div><div style="font-weight:600;font-size:17px">' + esc(uname) + '</div>' +
+                '<div class="text-sm text-muted">Connecté</div></div>' +
+        '</div>' +
+    '</div>';
+
+    // ── Accès à mon bar (partages sortants) ──────────────────────────────────
+    html += '<div class="section-header">' +
+        '<span class="section-title">Accès à mon bar</span>' +
+        '<span class="chip">' + outgoing.length + ' personne' + (outgoing.length > 1 ? 's' : '') + '</span>' +
+    '</div>';
+    html += '<div class="card card-flush" style="margin-bottom:12px">';
+    if (!outgoing.length) {
+        html += '<div style="padding:16px;color:var(--text-muted);font-size:14px;text-align:center">Aucun accès partagé pour l\'instant</div>';
+    } else {
+        html += '<div style="padding:0 16px">';
+        outgoing.forEach(function (s) {
+            html += '<div class="share-item">' +
+                '<div class="avatar avatar-sm">' + esc(s.guest_username[0].toUpperCase()) + '</div>' +
+                '<div style="flex:1">' +
+                    '<div class="share-item-name">' + esc(s.guest_username) + '</div>' +
+                    '<div class="share-item-perm">' + (s.can_write ? icon('edit-2', 12) + ' Lecture + écriture' : icon('eye', 12) + ' Lecture seule') + '</div>' +
+                '</div>' +
+                '<button class="btn btn-outline-danger btn-sm" onclick="confirmRevokeShare(' + s.id + ',\'' + esc(s.guest_username) + '\')">' + icon('x', 13) + ' Retirer</button>' +
+            '</div>';
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+
+    // ── Formulaire d'ajout ────────────────────────────────────────────────────
+    // Filtrer les utilisateurs déjà partagés
+    var availableUsers = users.filter(function (u) {
+        return !outgoing.some(function (s) { return s.guest_id == u.id; });
+    });
+
+    html += '<div class="card" style="margin-bottom:20px">';
+    html += '<div class="section-header" style="margin-top:0"><span class="section-title">Partager avec quelqu\'un</span></div>';
+    if (!users.length) {
+        html += '<div style="display:flex;gap:10px;align-items:center;color:var(--text-muted);font-size:13px">' +
+            icon('info', 16) +
+            '<span>Aucun autre compte enregistré sur cette instance.</span></div>';
+    } else if (!availableUsers.length) {
+        html += '<div style="display:flex;gap:10px;align-items:center;color:var(--text-muted);font-size:13px">' +
+            icon('check-circle', 16) +
+            '<span>Tous les utilisateurs ont déjà accès à votre bar.</span></div>';
+    } else {
+        var opts = '<option value="">— Choisir un utilisateur —</option>' +
+            availableUsers.map(function (u) {
+                return '<option value="' + u.id + '">' + esc(u.username) + '</option>';
+            }).join('');
+        html += '<div class="input-group">' +
+            '<label>Utilisateur</label>' +
+            '<select class="input" id="share-guest-select">' + opts + '</select>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
+            '<span style="font-size:14px;font-weight:500">Autoriser les modifications</span>' +
+            '<label class="toggle">' +
+                '<input type="checkbox" id="share-can-write">' +
+                '<span class="toggle-track"></span>' +
+            '</label>' +
+        '</div>' +
+        '<button class="btn btn-primary btn-full" onclick="doAddShare()">' + icon('share-2', 16) + ' Partager mon bar</button>';
+    }
+    html += '</div>';
+
+    // ── Bars partagés avec moi (partages entrants) ────────────────────────────
+    if (incoming.length) {
+        html += '<div class="section-header"><span class="section-title">Bars partagés avec moi</span></div>';
+        html += '<div class="card card-flush" style="margin-bottom:20px"><div style="padding:0 16px">';
+        incoming.forEach(function (s) {
+            html += '<div class="share-item">' +
+                '<div class="avatar avatar-sm">' + esc(s.owner_username[0].toUpperCase()) + '</div>' +
+                '<div style="flex:1">' +
+                    '<div class="share-item-name">Bar de <strong>' + esc(s.owner_username) + '</strong></div>' +
+                    '<div class="share-item-perm">' + (s.can_write ? icon('edit-2', 12) + ' Lecture + écriture' : icon('eye', 12) + ' Lecture seule') + '</div>' +
+                '</div>' +
+                '<span class="chip chip-primary" style="font-size:11px">' + icon('check', 11) + ' Accès</span>' +
+            '</div>';
+        });
+        html += '</div></div>';
+    }
+
+    // ── Gestion du compte ─────────────────────────────────────────────────────
+    html += '<div class="section-header"><span class="section-title">Gestion du compte</span></div>';
+    html += '<div class="card card-flush" style="margin-bottom:16px">';
+
+    var accountRows = [
+        { ico: 'edit-2',   label: "Changer l'identifiant",   sub: 'Modifier votre nom d\'utilisateur', fn: 'showChangeUsernameModal()', danger: false },
+        { ico: 'lock',     label: 'Changer le mot de passe',  sub: 'Exige le mot de passe actuel',      fn: 'showChangePasswordModal()', danger: false },
+        { ico: 'trash-2',  label: 'Supprimer le compte',      sub: 'Efface toutes vos données',         fn: 'showDeleteAccountModal()',  danger: true  },
+    ];
+    html += '<div style="padding:0 16px">';
+    accountRows.forEach(function (row) {
+        html += '<div class="settings-row" style="cursor:pointer" onclick="' + row.fn + '">' +
+            '<div class="settings-row-icon" style="' + (row.danger ? 'background:var(--danger-light);color:var(--danger)' : '') + '">' +
+                icon(row.ico, 18) +
+            '</div>' +
+            '<div class="settings-row-body">' +
+                '<div class="settings-row-title" style="' + (row.danger ? 'color:var(--danger)' : '') + '">' + row.label + '</div>' +
+                '<div class="settings-row-sub">' + row.sub + '</div>' +
+            '</div>' +
+            '<span style="color:var(--text-muted)">' + icon('chevron-right', 16) + '</span>' +
+        '</div>';
+    });
+    html += '</div></div>';
+
+    // ── Session ───────────────────────────────────────────────────────────────
+    html += '<div class="section-header"><span class="section-title">Session</span></div>';
+    html += '<button class="btn btn-outline-danger btn-full" onclick="logout()">' + icon('log-out', 16) + ' Se déconnecter</button>';
+    html += '<div style="height:24px"></div>';
+
+    return html;
+}
+
+// ── Modales gestion de compte ──────────────────────────────────────────────────
+
+function showChangeUsernameModal() {
+    var uname = (currentUser && currentUser.username) || '';
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal">' +
+            '<div class="modal-handle"></div>' +
+            '<h3 class="modal-title">' + icon('edit-2', 20) + ' Changer l\'identifiant</h3>' +
+            '<div class="input-group">' +
+                '<label>Nouvel identifiant</label>' +
+                '<input class="input" type="text" id="new-username-input" value="' + esc(uname) + '" autocomplete="username">' +
+            '</div>' +
+            '<div class="input-group">' +
+                '<label>Mot de passe actuel (confirmation)</label>' +
+                '<input class="input" type="password" id="confirm-pass-username" placeholder="Votre mot de passe" autocomplete="current-password">' +
+            '</div>' +
+            '<div id="modal-error-username" class="auth-error" style="display:none"></div>' +
+            '<div class="modal-actions">' +
+                '<button class="btn btn-primary btn-full" onclick="doChangeUsername()">Enregistrer</button>' +
+                '<button class="btn btn-ghost btn-full" onclick="this.closest(\'.modal-overlay\').remove()">Annuler</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    setTimeout(function () { var el = document.getElementById('new-username-input'); if (el) { el.focus(); el.select(); } }, 50);
+}
+
+function showChangePasswordModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal">' +
+            '<div class="modal-handle"></div>' +
+            '<h3 class="modal-title">' + icon('lock', 20) + ' Changer le mot de passe</h3>' +
+            '<div class="input-group">' +
+                '<label>Mot de passe actuel</label>' +
+                '<input class="input" type="password" id="old-pass-input" autocomplete="current-password">' +
+            '</div>' +
+            '<div class="input-group">' +
+                '<label>Nouveau mot de passe <span style="color:var(--text-muted);font-size:12px">(min. 6 caractères)</span></label>' +
+                '<input class="input" type="password" id="new-pass-input" autocomplete="new-password">' +
+            '</div>' +
+            '<div class="input-group">' +
+                '<label>Confirmer le nouveau mot de passe</label>' +
+                '<input class="input" type="password" id="new-pass-confirm-input" autocomplete="new-password">' +
+            '</div>' +
+            '<div id="modal-error-pass" class="auth-error" style="display:none"></div>' +
+            '<div class="modal-actions">' +
+                '<button class="btn btn-primary btn-full" onclick="doChangePassword()">Enregistrer</button>' +
+                '<button class="btn btn-ghost btn-full" onclick="this.closest(\'.modal-overlay\').remove()">Annuler</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+function showDeleteAccountModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal">' +
+            '<div class="modal-handle"></div>' +
+            '<div style="color:var(--danger);text-align:center;margin-bottom:8px">' + icon('trash-2', 40) + '</div>' +
+            '<h3 class="modal-title" style="color:var(--danger);text-align:center">Supprimer le compte</h3>' +
+            '<p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;text-align:center">' +
+                'Cette action est <strong>irréversible</strong>. Toutes vos bouteilles, recettes, productions et photos seront supprimées définitivement.' +
+            '</p>' +
+            '<div class="input-group">' +
+                '<label>Confirmez avec votre mot de passe</label>' +
+                '<input class="input" type="password" id="delete-pass-input" placeholder="Votre mot de passe" autocomplete="current-password">' +
+            '</div>' +
+            '<div id="modal-error-delete" class="auth-error" style="display:none"></div>' +
+            '<div class="modal-actions">' +
+                '<button class="btn btn-danger btn-full" onclick="doDeleteAccount()">Supprimer définitivement</button>' +
+                '<button class="btn btn-ghost btn-full" onclick="this.closest(\'.modal-overlay\').remove()">Annuler</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+function showModalError(elId, msg) {
+    var el = document.getElementById(elId);
+    if (el) { el.innerHTML = icon('alert-circle', 14) + ' ' + esc(msg); el.style.display = 'flex'; }
+}
+
+async function doChangeUsername() {
+    var newName = (document.getElementById('new-username-input') || {}).value || '';
+    var pass    = (document.getElementById('confirm-pass-username') || {}).value || '';
+    if (!newName.trim()) { showModalError('modal-error-username', 'Saisissez un identifiant'); return; }
+    if (!pass)           { showModalError('modal-error-username', 'Saisissez votre mot de passe'); return; }
+
+    var res = await post('auth.php?action=change_username', { username: newName.trim(), password: pass });
+    if (!res || res.error) { showModalError('modal-error-username', res ? res.error : 'Erreur'); return; }
+
+    currentUser.username = res.username;
+    localStorage.setItem('bettonbar_user', JSON.stringify(currentUser));
+    document.querySelector('.modal-overlay').remove();
+    toast('Identifiant modifié !');
+    navigate('settings');
+}
+
+async function doChangePassword() {
+    var oldPass  = (document.getElementById('old-pass-input')         || {}).value || '';
+    var newPass  = (document.getElementById('new-pass-input')         || {}).value || '';
+    var confirm  = (document.getElementById('new-pass-confirm-input') || {}).value || '';
+    if (!oldPass) { showModalError('modal-error-pass', 'Saisissez votre mot de passe actuel'); return; }
+    if (newPass.length < 6) { showModalError('modal-error-pass', 'Le nouveau mot de passe doit contenir au moins 6 caractères'); return; }
+    if (newPass !== confirm) { showModalError('modal-error-pass', 'Les mots de passe ne correspondent pas'); return; }
+
+    var res = await post('auth.php?action=change_password', { current_password: oldPass, new_password: newPass });
+    if (!res || res.error) { showModalError('modal-error-pass', res ? res.error : 'Erreur'); return; }
+
+    document.querySelector('.modal-overlay').remove();
+    toast('Mot de passe modifié !');
+}
+
+async function doDeleteAccount() {
+    var pass = (document.getElementById('delete-pass-input') || {}).value || '';
+    if (!pass) { showModalError('modal-error-delete', 'Saisissez votre mot de passe pour confirmer'); return; }
+
+    var res = await post('auth.php?action=delete_account', { password: pass });
+    if (!res || res.error) { showModalError('modal-error-delete', res ? res.error : 'Erreur'); return; }
+
+    // Nettoyage local complet
+    token = null; currentUser = null;
+    localStorage.removeItem('bettonbar_token');
+    localStorage.removeItem('bettonbar_user');
+    document.querySelector('.modal-overlay').remove();
+    toast('Compte supprimé');
+    navigate('auth');
+}
+
+async function doAddShare() {
+    var guestId  = (document.getElementById('share-guest-select') || {}).value;
+    var canWrite = (document.getElementById('share-can-write') || {}).checked ? 1 : 0;
+    if (!guestId) { toast('Sélectionnez un utilisateur', 'error'); return; }
+
+    var btn = document.querySelector('#settings-content .btn-primary');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Partage…'; }
+
+    var res = await post('shares.php', { guest_id: parseInt(guestId), can_write: canWrite });
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); navigate('settings'); return; }
+    toast('Bar partagé !');
+    navigate('settings');
+}
+
+function confirmRevokeShare(id, username) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+        '<div class="modal confirm-dialog">' +
+            '<div style="color:var(--danger);margin-bottom:8px">' + icon('share-2', 32) + '</div>' +
+            '<h3>Retirer l\'accès ?</h3>' +
+            '<p><strong>' + esc(username) + '</strong> ne pourra plus consulter votre bar.</p>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-surface" onclick="document.querySelector(\'.modal-overlay\').remove()">Annuler</button>' +
+                '<button class="btn btn-danger" onclick="doRevokeShare(' + id + ')">Retirer</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doRevokeShare(id) {
+    var overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
+    var res = await del('shares.php?id=' + id);
+    if (!res || res.error) { toast((res && res.error) || 'Erreur', 'error'); return; }
+    toast('Accès retiré');
+    navigate('settings');
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async function () {
+    // MutationObserver : traite automatiquement les icônes Lucide à chaque modification du DOM
+    if (typeof lucide !== 'undefined') {
+        new MutationObserver(function (mutations) {
+            var hasIcons = mutations.some(function (m) {
+                return Array.from(m.addedNodes).some(function (node) {
+                    if (node.nodeType !== 1) return false;
+                    return (node.tagName === 'I' && node.hasAttribute('data-lucide')) ||
+                           (node.querySelector && !!node.querySelector('[data-lucide]'));
+                });
+            });
+            if (hasIcons) lucide.createIcons();
+        }).observe(document.body, { childList: true, subtree: true });
+    }
+
     if (token) {
+        // Positionner state.view avant l'appel pour que api() ne redirige pas pendant le check
+        state.view = 'checking';
         var res = await api('auth.php?action=check');
         if (res && res.id) {
             currentUser = { id: res.id, username: res.username };
             localStorage.setItem('bettonbar_user', JSON.stringify(currentUser));
             navigate('home');
         } else {
+            // api() a déjà effacé le token si 401 — on s'assure juste d'aller sur auth
             token = null;
             currentUser = null;
             localStorage.removeItem('bettonbar_token');
