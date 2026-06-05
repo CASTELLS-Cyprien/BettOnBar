@@ -6,12 +6,14 @@ $action = $_GET['action'] ?? '';
 
 switch ($method) {
     case 'GET':
-        getRecipes();
+        $action === 'history' ? getHistory() : getRecipes();
         break;
     case 'POST':
         switch ($action) {
             case 'upload_photo':    uploadRecipePhoto();  break;
-            case 'toggle_favorite': toggleFavorite();     break;
+            case 'toggle_favorite': toggleFavorite();  break;
+            case 'rate':            rateRecipe();      break;
+            case 'log_prepared':    logPrepared();     break;
             default:                createRecipe();
         }
         break;
@@ -74,8 +76,8 @@ function createRecipe(): void
     $db->beginTransaction();
     try {
         $stmt = $db->prepare('
-            INSERT INTO recipes (user_id, name, photo, difficulty, prep_time, servings, notes, user_rating)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO recipes (user_id, name, photo, difficulty, prep_time, servings, notes, user_rating, tags)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt->execute([
             $userId,
@@ -86,6 +88,7 @@ function createRecipe(): void
             max(1, (int)($d['servings'] ?? 1)),
             trim($d['notes'] ?? ''),
             isset($d['user_rating']) && (float)$d['user_rating'] > 0 ? (float)$d['user_rating'] : null,
+            trim($d['tags'] ?? ''),
         ]);
         $recipeId = (int) $db->lastInsertId();
         insertIngredientsAndSteps($db, $recipeId, $d);
@@ -124,7 +127,7 @@ function updateRecipe(): void
     try {
         $stmt = $db->prepare('
             UPDATE recipes
-            SET name=?, photo=?, difficulty=?, prep_time=?, servings=?, notes=?, user_rating=?
+            SET name=?, photo=?, difficulty=?, prep_time=?, servings=?, notes=?, user_rating=?, tags=?
             WHERE id=? AND user_id=?
         ');
         $stmt->execute([
@@ -135,6 +138,7 @@ function updateRecipe(): void
             max(1, (int)($d['servings'] ?? 1)),
             trim($d['notes'] ?? ''),
             isset($d['user_rating']) && (float)$d['user_rating'] > 0 ? (float)$d['user_rating'] : null,
+            trim($d['tags'] ?? ''),
             (int) $d['id'],
             $userId,
         ]);
@@ -189,6 +193,58 @@ function toggleFavorite(): void
     $db->prepare('UPDATE recipes SET is_favorite=? WHERE id=? AND user_id=?')
        ->execute([$newVal, $id, $userId]);
     jsonOk(['is_favorite' => $newVal]);
+}
+
+function rateRecipe(): void
+{
+    $userId = authenticate();
+    $id     = $_GET['id'] ?? null;
+    if (!$id) jsonError('ID manquant');
+    $d      = jsonInput();
+
+    $db    = getDB();
+    $check = $db->prepare('SELECT id FROM recipes WHERE id = ? AND user_id = ?');
+    $check->execute([$id, $userId]);
+    if (!$check->fetch()) jsonError('Recette introuvable', 404);
+
+    $rating = isset($d['user_rating']) && (float)$d['user_rating'] > 0
+        ? (float)$d['user_rating'] : null;
+
+    $db->prepare('UPDATE recipes SET user_rating = ? WHERE id = ? AND user_id = ?')
+       ->execute([$rating, (int)$id, $userId]);
+    jsonOk(['user_rating' => $rating]);
+}
+
+function logPrepared(): void
+{
+    $userId = authenticate();
+    $id     = $_GET['id'] ?? null;
+    if (!$id) jsonError('ID manquant');
+
+    $db     = getDB();
+    $recipe = $db->prepare('SELECT name FROM recipes WHERE id = ? AND user_id = ?');
+    $recipe->execute([$id, $userId]);
+    $row    = $recipe->fetch();
+    if (!$row) jsonError('Recette introuvable', 404);
+
+    $db->prepare('INSERT INTO cocktail_history (user_id, recipe_id, recipe_name) VALUES (?, ?, ?)')
+       ->execute([$userId, (int)$id, $row['name']]);
+
+    jsonOk(['prepared_at' => date('Y-m-d H:i:s')]);
+}
+
+function getHistory(): void
+{
+    $userId = authenticate();
+    $limit  = max(1, min(50, (int)($_GET['limit'] ?? 10)));
+    $db     = getDB();
+    $stmt   = $db->prepare(
+        'SELECT id, recipe_id, recipe_name, prepared_at
+         FROM cocktail_history WHERE user_id = ?
+         ORDER BY prepared_at DESC LIMIT ?'
+    );
+    $stmt->execute([$userId, $limit]);
+    jsonOk($stmt->fetchAll());
 }
 
 function insertIngredientsAndSteps(PDO $db, int $recipeId, array $d): void

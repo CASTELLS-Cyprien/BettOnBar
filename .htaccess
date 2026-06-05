@@ -3,3 +3,9 @@
     RewriteEngine On
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization},L]
 </IfModule>
+
+# MIME types pour PWA
+AddType application/manifest+json .json
+AddType text/javascript .js
+AddType image/png .png
+AddType image/svg+xml .svg

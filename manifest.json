@@ -1,0 +1,38 @@
+{
+    "name": "BettOnBar",
+    "short_name": "BettOnBar",
+    "description": "Gérez votre bar personnel — inventaire, recettes, brassages",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#0f172a",
+    "theme_color": "#2563eb",
+    "lang": "fr",
+    "icons": [
+        {
+            "src": "biere.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "biere.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "categories": ["food", "lifestyle"],
+    "shortcuts": [
+        {
+            "name": "Mon Bar",
+            "url": "./index.html",
+            "description": "Accéder à Mon Bar"
+        },
+        {
+            "name": "Nouvelle recette",
+            "url": "./index.html",
+            "description": "Créer une nouvelle recette"
+        }
+    ]
+}

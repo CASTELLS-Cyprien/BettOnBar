@@ -10,16 +10,21 @@ switch ($method) {
         break;
     case 'POST':
         switch ($action) {
-            case 'next_step':   nextStep();          break;
-            case 'extend_step': extendStep();        break;
-            case 'add_journal': addJournal();        break;
-            case 'finish':      finishProduction();  break;
-            case 'abandon':     abandonProduction(); break;
+            case 'next_step':    nextStep();          break;
+            case 'extend_step':  extendStep();        break;
+            case 'add_journal':  addJournal();        break;
+            case 'edit_journal': editJournal();       break;
+            case 'finish':       finishProduction();  break;
+            case 'abandon':      abandonProduction(); break;
             default:            createProduction();
         }
         break;
     case 'PUT':    updateProduction(); break;
-    case 'DELETE': deleteProduction(); break;
+    case 'DELETE':
+        $action === 'delete_journal'
+            ? deleteJournal((int)($_GET['id'] ?? 0), authenticate(), getDB())
+            : deleteProduction();
+        break;
     default: jsonError('Méthode non autorisée', 405);
 }
 
@@ -247,6 +252,40 @@ function addJournal(): void
 }
 
 // ─── Statut production ────────────────────────────────────────────────────────
+
+function editJournal(): void
+{
+    $userId = authenticate();
+    $d      = jsonInput();
+    if (empty($d['id']))                jsonError('ID manquant');
+    if (empty(trim($d['note'] ?? ''))) jsonError('La note est requise');
+
+    $db    = getDB();
+    $check = $db->prepare('
+        SELECT pj.id FROM prod_journal pj
+        JOIN productions p ON pj.production_id = p.id
+        WHERE pj.id = ? AND p.user_id = ?
+    ');
+    $check->execute([$d['id'], $userId]);
+    if (!$check->fetch()) jsonError('Note introuvable', 404);
+
+    $db->prepare('UPDATE prod_journal SET note = ? WHERE id = ?')
+       ->execute([trim($d['note']), (int)$d['id']]);
+    jsonOk();
+}
+
+function deleteJournal(int $id, int $userId, PDO $db): void
+{
+    $check = $db->prepare('
+        SELECT pj.id FROM prod_journal pj
+        JOIN productions p ON pj.production_id = p.id
+        WHERE pj.id = ? AND p.user_id = ?
+    ');
+    $check->execute([$id, $userId]);
+    if (!$check->fetch()) jsonError('Note introuvable', 404);
+    $db->prepare('DELETE FROM prod_journal WHERE id = ?')->execute([$id]);
+    jsonOk();
+}
 
 function finishProduction(): void
 {

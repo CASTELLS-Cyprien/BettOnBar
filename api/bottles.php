@@ -25,9 +25,25 @@ function uploadPhoto(): void
 
 function getBottles(): void
 {
-    $userId = authenticate();
-    $db     = getDB();
-    $stmt   = $db->prepare('SELECT * FROM bottles WHERE user_id = ? ORDER BY created_at DESC');
+    $userId  = authenticate();
+    $ownerId = isset($_GET['owner_id']) ? (int)$_GET['owner_id'] : null;
+    $db      = getDB();
+
+    if ($ownerId && $ownerId !== $userId) {
+        // Vérifie que le partage existe
+        $check = $db->prepare(
+            'SELECT can_write FROM bar_shares WHERE owner_id = ? AND guest_id = ?'
+        );
+        $check->execute([$ownerId, $userId]);
+        $share = $check->fetch();
+        if (!$share) jsonError('Accès non autorisé à ce bar', 403);
+
+        $stmt = $db->prepare('SELECT * FROM bottles WHERE user_id = ? ORDER BY created_at DESC');
+        $stmt->execute([$ownerId]);
+        jsonOk($stmt->fetchAll());
+    }
+
+    $stmt = $db->prepare('SELECT * FROM bottles WHERE user_id = ? ORDER BY created_at DESC');
     $stmt->execute([$userId]);
     jsonOk($stmt->fetchAll());
 }

@@ -65,6 +65,65 @@ svg[data-lucide] {
     overflow: hidden;
 }
 
+/* ─── Mode sombre ────────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+    --primary:       #60a5fa;
+    --primary-hover: #93c5fd;
+    --primary-light: #1e3a5f;
+    --accent:        #93c5fd;
+    --accent-hover:  #bfdbfe;
+    --accent-light:  #172554;
+    --bg:            #0f172a;
+    --surface:       #1e293b;
+    --border:        #334155;
+    --border-dark:   #475569;
+    --text:          #f1f5f9;
+    --text-muted:    #94a3b8;
+    --text-light:    #475569;
+    --danger:        #f87171;
+    --danger-light:  #1f0909;
+    --warning:       #fbbf24;
+    --warning-light: #1c1408;
+    --success:       #4ade80;
+    --success-light: #052e16;
+    --gold:          #fbbf24;
+    --shadow:        0 2px 10px rgba(0,0,0,0.4);
+    --shadow-md:     0 4px 20px rgba(0,0,0,0.5);
+    --shadow-lg:     0 8px 32px rgba(0,0,0,0.6);
+    /* Force les contrôles natifs du navigateur (select, scrollbar, etc.) en mode sombre */
+    color-scheme: dark;
+}
+
+/* Contrôles de formulaire : on utilise background-COLOR (pas le raccourci)
+   pour ne pas écraser background-image/repeat/position définis dans la règle de base */
+[data-theme="dark"] .input {
+    background-color: #1e293b;
+    color: #f1f5f9;
+    border-color: #334155;
+}
+[data-theme="dark"] .input:focus {
+    background-color: #1e293b;
+    border-color: var(--primary);
+}
+[data-theme="dark"] select.input {
+    background-color: #1e293b;
+    color: #f1f5f9;
+    /* Réexpliciter repeat + position car l'héritage peut être cassé par le reset ci-dessus */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+}
+[data-theme="dark"] select.input option {
+    background-color: #1e293b;
+    color: #f1f5f9;
+}
+[data-theme="dark"] textarea.input { background-color: #1e293b; color: #f1f5f9; }
+[data-theme="dark"] .auth-page { background: #0f172a; }
+[data-theme="dark"] .tabs { background: #0f172a; }
+[data-theme="dark"] .bottle-details { border-color: var(--border); }
+[data-theme="dark"] .bottle-details-summary { background: var(--surface); }
+[data-theme="dark"] input[type=range] { accent-color: var(--primary); }
+
 /* ─── Reset ──────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -780,6 +839,36 @@ select.input { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg
     margin-top: 6px;
 }
 
+/* ─── Details repliable (formulaire bouteille) ───────────────────────────────── */
+.bottle-details {
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+
+.bottle-details-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 11px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    list-style: none;
+    user-select: none;
+    background: var(--bg);
+    transition: background var(--transition);
+}
+.bottle-details-summary::-webkit-details-marker { display: none; }
+.bottle-details-summary:hover { background: var(--primary-light); color: var(--primary); }
+
+.bottle-details[open] .bottle-details-summary .ic { transform: rotate(90deg); }
+.bottle-details .ic { transition: transform 0.2s; }
+
+.bottle-details-body { padding: 0 14px 14px; }
+
 /* ─── Bottle card ────────────────────────────────────────────────────────────── */
 .bottle-card {
     display: flex;
@@ -1236,6 +1325,158 @@ select.input { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg
 .share-item-name { flex: 1; font-weight: 500; }
 .share-item-perm { font-size: 13px; color: var(--text-muted); }
 
+/* ─── Dashboard ──────────────────────────────────────────────────────────────── */
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    text-align: center;
+    transition: box-shadow var(--transition), transform 0.1s;
+}
+.stat-card:hover  { box-shadow: var(--shadow-md); }
+.stat-card:active { transform: scale(0.96); }
+.stat-val { font-size: 30px; font-weight: 700; color: var(--text); line-height: 1; }
+.stat-lbl { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+.dashboard-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.quick-action {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    text-align: center;
+    border: none;
+    transition: background var(--transition), box-shadow var(--transition), color var(--transition);
+}
+.quick-action:hover  { background: var(--primary-light); color: var(--primary); box-shadow: var(--shadow-md); }
+.quick-action:active { transform: scale(0.96); }
+
+/* ─── Boutons réordonnement ingrédients ──────────────────────────────────────── */
+.ing-move-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+    flex-shrink: 0;
+}
+.ing-move-btn:hover  { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+.ing-move-btn:active { transform: scale(0.9); }
+
+/* ─── Ingredient card ────────────────────────────────────────────────────────── */
+.ing-card {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.ing-card-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: background var(--transition);
+}
+.ing-card-left:hover  { background: var(--bg); }
+.ing-card-left:active { opacity: 0.7; }
+
+.ing-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--primary-light);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ing-info   { flex: 1; min-width: 0; }
+.ing-name   { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ing-desc   { font-size: 13px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Contrôle quantité */
+.ing-qty-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 12px 0 0;
+    flex-shrink: 0;
+}
+
+.ing-qty-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 52px;
+    padding: 0 6px;
+}
+
+.ing-qty-val  { font-size: 18px; font-weight: 700; line-height: 1.1; }
+.ing-qty-unit { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+/* Boutons +/− */
+.qty-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 20px;
+    font-weight: 300;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+    flex-shrink: 0;
+}
+.qty-btn:hover      { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+.qty-btn:active     { transform: scale(0.9); }
+.qty-btn-plus:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+
 /* ─── Suggest status ─────────────────────────────────────────────────────────── */
 .suggest-card {
     cursor: pointer;
@@ -1313,3 +1554,155 @@ select.input { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg
     .fab          { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px); }
     .toast        { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px); }
 }
+
+/* ─── Mode préparation plein écran ──────────────────────────────────────────── */
+.cook-page {
+    position: fixed;
+    inset: 0;
+    background: #0f172a;
+    color: #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    z-index: 500;
+    max-width: 540px;
+    margin: 0 auto;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.cook-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 18px 60px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    gap: 10px;
+    position: relative;
+}
+
+.cook-exit {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.cook-exit:hover { background: rgba(255,255,255,0.15); }
+
+.cook-recipe-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.55);
+    text-align: center;
+}
+
+.cook-dots {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.cook-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    transition: all 0.3s;
+    flex-shrink: 0;
+}
+.cook-dot.done    { background: #4ade80; }
+.cook-dot.current { background: #60a5fa; width: 24px; border-radius: 4px; }
+
+.cook-counter {
+    text-align: center;
+    font-size: 13px;
+    color: rgba(255,255,255,0.35);
+    padding: 16px 24px 0;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.cook-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 28px;
+    overflow-y: auto;
+}
+
+.cook-instruction {
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1.45;
+    text-align: center;
+    color: #f1f5f9;
+}
+
+.cook-footer {
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px 20px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.cook-btn {
+    flex: 1;
+    height: 56px;
+    border-radius: var(--radius);
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    color: #f1f5f9;
+    border: none;
+}
+.cook-btn:active { transform: scale(0.96); }
+.cook-btn:disabled { opacity: 0.25; cursor: not-allowed; transform: none; }
+.cook-prev { background: rgba(255,255,255,0.08); }
+.cook-prev:not(:disabled):hover { background: rgba(255,255,255,0.13); }
+.cook-next { background: #2563eb; }
+.cook-next:hover { background: #1d4ed8; }
+.cook-done { background: #16a34a; }
+.cook-done:hover { background: #15803d; }
+
+/* Ingrédients repliables en cook mode */
+.cook-ing-details {
+    margin: 0 16px 8px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.cook-ing-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    color: rgba(255,255,255,0.6);
+    list-style: none;
+    user-select: none;
+    background: rgba(255,255,255,0.05);
+}
+.cook-ing-summary::-webkit-details-marker { display: none; }
+.cook-ing-list { padding: 8px 16px 12px; }
+.cook-ing-row {
+    display: flex;
+    gap: 14px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-size: 15px;
+}
+.cook-ing-row:last-child { border-bottom: none; }
+.cook-ing-qty { color: #60a5fa; font-weight: 600; min-width: 70px; flex-shrink: 0; }

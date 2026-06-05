@@ -154,6 +154,22 @@ function initDB(PDO $pdo): void
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
     ");
+
+    // Migration : colonne tags pour les recettes (ignorée si déjà présente)
+    try { $pdo->exec("ALTER TABLE recipes ADD COLUMN tags TEXT DEFAULT ''"); }
+    catch (\Exception $e) { /* colonne déjà existante — normal */ }
+
+    // Historique des cocktails préparés
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS cocktail_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            recipe_id INTEGER,
+            recipe_name TEXT NOT NULL,
+            prepared_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+    ");
 }
 
 function authenticate(): int

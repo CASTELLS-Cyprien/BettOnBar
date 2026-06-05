@@ -2,8 +2,19 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <!-- Applique le thème AVANT le rendu CSS pour éviter le flash -->
+    <script>(function(){var t=localStorage.getItem('bettonbar_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})()</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BettOnBar</title>
+    <link rel="manifest" id="manifest-link">
+    <link rel="icon" href="biere.png" type="image/png">
+    <link rel="apple-touch-icon" href="biere.png">
+    <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1e293b" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BettOnBar">
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,5 +25,32 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="app.js"></script>
+    <script>
+        (function() {
+            var base = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/');
+            var manifest = {
+                name: "BettOnBar",
+                short_name: "BettOnBar",
+                description: "Gérez votre bar personnel — inventaire, recettes, brassages",
+                start_url: base + "index.html",
+                id: base + "index.html",
+                display: "standalone",
+                orientation: "portrait-primary",
+                background_color: "#0f172a",
+                theme_color: "#2563eb",
+                lang: "fr",
+                icons: [
+                    { src: base + "biere.png", sizes: "512x512", type: "image/png", purpose: "any" },
+                    { src: base + "biere.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+                ],
+                categories: ["food", "lifestyle"]
+            };
+            var blob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
+            document.getElementById('manifest-link').href = URL.createObjectURL(blob);
+        })();
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js');
+        }
+    </script>
 </body>
 </html>
