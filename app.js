@@ -38,6 +38,8 @@ var state = {};
 async function api(ep, opts) {
     opts = opts || {};
     opts.headers = opts.headers || {};
+    opts.credentials = 'include'; // <-- LIGNE CRUCIALE : Autorise l'envoi du cookie de sécurité
+    
     if (token) opts.headers['Authorization'] = 'Bearer ' + token;
     if (opts.body && typeof opts.body === 'string') {
         opts.headers['Content-Type'] = 'application/json';
@@ -49,15 +51,40 @@ async function api(ep, opts) {
             currentUser = null;
             localStorage.removeItem('bettonbar_token');
             localStorage.removeItem('bettonbar_user');
-            // N'appelle navigate que si on n'est pas déjà en train de s'authentifier
             if (state.view !== 'auth') navigate('auth');
             return { error: 'Session expirée, veuillez vous reconnecter' };
+        }
+        // Dans app.js, au sein de votre fonction api()
+        if (res.status === 401) {
+            // Ne pas logger en erreur, c'est juste un utilisateur non connecté
+            return { error: 'Non authentifié' };
         }
         return await res.json();
     } catch (e) {
         toast('Erreur de connexion au serveur', 'error');
         return { error: 'Erreur réseau' };
     }
+}
+
+// ─── Déblocage Anti-Bot Hébergeur ─────────────────────────────────────────────
+function unlockAPI() {
+    return new Promise(function(resolve) {
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        
+        // On charge une route API inoffensive pour forcer l'hébergeur à donner son cookie
+        iframe.src = API + '/auth.php?action=check'; 
+        
+        document.body.appendChild(iframe);
+        
+        // On attend 4 secondes (le temps que le script AES s'exécute et recharge l'iframe)
+        setTimeout(function() {
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+            }
+            resolve();
+        }, 4000);
+    });
 }
 
 function post(u, b) { return api(u, { method: 'POST', body: JSON.stringify(b) }); }
@@ -3369,8 +3396,12 @@ document.addEventListener('DOMContentLoaded', async function () {
         }).observe(document.body, { childList: true, subtree: true });
     }
 
+    // 1. DÉBLOCAGE SILENCIEUX DE L'HÉBERGEUR
+    // L'écran de chargement (spinner) est visible pendant ces 4 secondes
+    await unlockAPI();
+
+    // 2. SUITE LOGIQUE DE L'APPLICATION
     if (token) {
-        // Positionner state.view avant l'appel pour que api() ne redirige pas pendant le check
         state.view = 'checking';
         var res = await api('auth.php?action=check');
         if (res && res.id) {
@@ -3378,7 +3409,6 @@ document.addEventListener('DOMContentLoaded', async function () {
             localStorage.setItem('bettonbar_user', JSON.stringify(currentUser));
             navigate('home');
         } else {
-            // api() a déjà effacé le token si 401 — on s'assure juste d'aller sur auth
             token = null;
             currentUser = null;
             localStorage.removeItem('bettonbar_token');
