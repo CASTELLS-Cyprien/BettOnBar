@@ -156,8 +156,10 @@ function initDB(PDO $pdo): void
     ");
 
     // Migration : colonne tags pour les recettes (ignorée si déjà présente)
-    try { $pdo->exec("ALTER TABLE recipes ADD COLUMN tags TEXT DEFAULT ''"); }
-    catch (\Exception $e) { /* colonne déjà existante — normal */ }
+    try {
+        $pdo->exec("ALTER TABLE recipes ADD COLUMN tags TEXT DEFAULT ''");
+    } catch (\Exception $e) { /* colonne déjà existante — normal */
+    }
 
     // Historique des cocktails préparés
     $pdo->exec("

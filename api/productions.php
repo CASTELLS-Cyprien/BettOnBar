@@ -10,22 +10,38 @@ switch ($method) {
         break;
     case 'POST':
         switch ($action) {
-            case 'next_step':    nextStep();          break;
-            case 'extend_step':  extendStep();        break;
-            case 'add_journal':  addJournal();        break;
-            case 'edit_journal': editJournal();       break;
-            case 'finish':       finishProduction();  break;
-            case 'abandon':      abandonProduction(); break;
-            default:            createProduction();
+            case 'next_step':
+                nextStep();
+                break;
+            case 'extend_step':
+                extendStep();
+                break;
+            case 'add_journal':
+                addJournal();
+                break;
+            case 'edit_journal':
+                editJournal();
+                break;
+            case 'finish':
+                finishProduction();
+                break;
+            case 'abandon':
+                abandonProduction();
+                break;
+            default:
+                createProduction();
         }
         break;
-    case 'PUT':    updateProduction(); break;
+    case 'PUT':
+        updateProduction();
+        break;
     case 'DELETE':
         $action === 'delete_journal'
             ? deleteJournal((int)($_GET['id'] ?? 0), authenticate(), getDB())
             : deleteProduction();
         break;
-    default: jsonError('Méthode non autorisée', 405);
+    default:
+        jsonError('Méthode non autorisée', 405);
 }
 
 // ─── Lecture ──────────────────────────────────────────────────────────────────
@@ -109,7 +125,7 @@ function createProduction(): void
         $f = $first->fetch();
         if ($f) {
             $db->prepare("UPDATE prod_steps SET status='in_progress', started_at=? WHERE id=?")
-               ->execute([date('Y-m-d'), $f['id']]);
+                ->execute([date('Y-m-d'), $f['id']]);
         }
 
         $db->commit();
@@ -199,7 +215,7 @@ function nextStep(): void
     $nxtStep = $nxt->fetch();
     if ($nxtStep) {
         $db->prepare("UPDATE prod_steps SET status='in_progress', started_at=? WHERE id=?")
-           ->execute([date('Y-m-d'), $nxtStep['id']]);
+            ->execute([date('Y-m-d'), $nxtStep['id']]);
     }
 
     $fetch = $db->prepare('SELECT * FROM productions WHERE id = ?');
@@ -224,7 +240,7 @@ function extendStep(): void
     if (!$check->fetch()) jsonError('Étape introuvable', 404);
 
     $db->prepare('UPDATE prod_steps SET duration_days = duration_days + ? WHERE id = ?')
-       ->execute([$days, $d['step_id']]);
+        ->execute([$days, $d['step_id']]);
     jsonOk();
 }
 
@@ -270,7 +286,7 @@ function editJournal(): void
     if (!$check->fetch()) jsonError('Note introuvable', 404);
 
     $db->prepare('UPDATE prod_journal SET note = ? WHERE id = ?')
-       ->execute([trim($d['note']), (int)$d['id']]);
+        ->execute([trim($d['note']), (int)$d['id']]);
     jsonOk();
 }
 

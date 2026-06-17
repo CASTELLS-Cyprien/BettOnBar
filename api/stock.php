@@ -5,13 +5,20 @@ $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 
 switch ($method) {
-    case 'GET':    getStock();        break;
+    case 'GET':
+        getStock();
+        break;
     case 'POST':
         $action === 'adjust' ? adjustQty() : createItem();
         break;
-    case 'PUT':    updateItem();  break;
-    case 'DELETE': deleteItem();  break;
-    default: jsonError('Méthode non autorisée', 405);
+    case 'PUT':
+        updateItem();
+        break;
+    case 'DELETE':
+        deleteItem();
+        break;
+    default:
+        jsonError('Méthode non autorisée', 405);
 }
 
 function getStock(): void
@@ -57,14 +64,14 @@ function updateItem(): void
     if (!$check->fetch()) jsonError('Ingrédient introuvable', 404);
 
     $db->prepare('UPDATE stock_ingredients SET name=?, description=?, quantity=?, unit=? WHERE id=? AND user_id=?')
-       ->execute([
-           trim($d['name']),
-           trim($d['description'] ?? ''),
-           max(0, (float)($d['quantity'] ?? 0)),
-           $d['unit'] ?? 'unité',
-           (int) $d['id'],
-           $userId,
-       ]);
+        ->execute([
+            trim($d['name']),
+            trim($d['description'] ?? ''),
+            max(0, (float)($d['quantity'] ?? 0)),
+            $d['unit'] ?? 'unité',
+            (int) $d['id'],
+            $userId,
+        ]);
     $fetch = $db->prepare('SELECT * FROM stock_ingredients WHERE id = ?');
     $fetch->execute([$d['id']]);
     jsonOk($fetch->fetch());
@@ -100,6 +107,6 @@ function adjustQty(): void
 
     $newQty = max(0, (float)$row['quantity'] + $delta);
     $db->prepare('UPDATE stock_ingredients SET quantity = ? WHERE id = ? AND user_id = ?')
-       ->execute([$newQty, (int)$d['id'], $userId]);
+        ->execute([$newQty, (int)$d['id'], $userId]);
     jsonOk(['quantity' => $newQty]);
 }

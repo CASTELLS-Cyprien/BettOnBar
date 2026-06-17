@@ -4,10 +4,17 @@ require_once __DIR__ . '/config.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($method) {
-    case 'GET':    getShares();    break;
-    case 'POST':   createShare(); break;
-    case 'DELETE': deleteShare(); break;
-    default: jsonError('Méthode non autorisée', 405);
+    case 'GET':
+        getShares();
+        break;
+    case 'POST':
+        createShare();
+        break;
+    case 'DELETE':
+        deleteShare();
+        break;
+    default:
+        jsonError('Méthode non autorisée', 405);
 }
 
 function getShares(): void

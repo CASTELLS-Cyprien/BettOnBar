@@ -10,16 +10,30 @@ switch ($method) {
         break;
     case 'POST':
         switch ($action) {
-            case 'upload_photo':    uploadRecipePhoto();  break;
-            case 'toggle_favorite': toggleFavorite();  break;
-            case 'rate':            rateRecipe();      break;
-            case 'log_prepared':    logPrepared();     break;
-            default:                createRecipe();
+            case 'upload_photo':
+                uploadRecipePhoto();
+                break;
+            case 'toggle_favorite':
+                toggleFavorite();
+                break;
+            case 'rate':
+                rateRecipe();
+                break;
+            case 'log_prepared':
+                logPrepared();
+                break;
+            default:
+                createRecipe();
         }
         break;
-    case 'PUT':    updateRecipe(); break;
-    case 'DELETE': deleteRecipe(); break;
-    default: jsonError('Méthode non autorisée', 405);
+    case 'PUT':
+        updateRecipe();
+        break;
+    case 'DELETE':
+        deleteRecipe();
+        break;
+    default:
+        jsonError('Méthode non autorisée', 405);
 }
 
 function uploadRecipePhoto(): void
@@ -191,7 +205,7 @@ function toggleFavorite(): void
 
     $newVal = $row['is_favorite'] ? 0 : 1;
     $db->prepare('UPDATE recipes SET is_favorite=? WHERE id=? AND user_id=?')
-       ->execute([$newVal, $id, $userId]);
+        ->execute([$newVal, $id, $userId]);
     jsonOk(['is_favorite' => $newVal]);
 }
 
@@ -211,7 +225,7 @@ function rateRecipe(): void
         ? (float)$d['user_rating'] : null;
 
     $db->prepare('UPDATE recipes SET user_rating = ? WHERE id = ? AND user_id = ?')
-       ->execute([$rating, (int)$id, $userId]);
+        ->execute([$rating, (int)$id, $userId]);
     jsonOk(['user_rating' => $rating]);
 }
 
@@ -228,7 +242,7 @@ function logPrepared(): void
     if (!$row) jsonError('Recette introuvable', 404);
 
     $db->prepare('INSERT INTO cocktail_history (user_id, recipe_id, recipe_name) VALUES (?, ?, ?)')
-       ->execute([$userId, (int)$id, $row['name']]);
+        ->execute([$userId, (int)$id, $row['name']]);
 
     jsonOk(['prepared_at' => date('Y-m-d H:i:s')]);
 }

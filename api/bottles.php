@@ -10,11 +10,20 @@ if ($action === 'upload_photo') {
 }
 
 switch ($method) {
-    case 'GET':    getBottles();    break;
-    case 'POST':   createBottle(); break;
-    case 'PUT':    updateBottle(); break;
-    case 'DELETE': deleteBottle(); break;
-    default: jsonError('Méthode non autorisée', 405);
+    case 'GET':
+        getBottles();
+        break;
+    case 'POST':
+        createBottle();
+        break;
+    case 'PUT':
+        updateBottle();
+        break;
+    case 'DELETE':
+        deleteBottle();
+        break;
+    default:
+        jsonError('Méthode non autorisée', 405);
 }
 
 function uploadPhoto(): void

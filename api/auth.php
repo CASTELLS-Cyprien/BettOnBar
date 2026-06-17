@@ -154,11 +154,11 @@ function handleChangePassword(): void
     }
 
     $db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-       ->execute([password_hash($newPass, PASSWORD_DEFAULT), $userId]);
+        ->execute([password_hash($newPass, PASSWORD_DEFAULT), $userId]);
 
     // Invalider toutes les autres sessions
     $db->prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?')
-       ->execute([$userId, extractToken()]);
+        ->execute([$userId, extractToken()]);
 
     jsonOk();
 }

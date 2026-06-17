@@ -33,7 +33,7 @@ self.addEventListener('fetch', e => {
             return fetch(e.request).then(res => {
                 if (res && res.status === 200 && res.type === 'basic') {
                     const clone = res.clone();
-                    caches.open(CACHE).then(c => c.put(e.request, clone)).catch(() => {});
+                    caches.open(CACHE).then(c => c.put(e.request, clone)).catch(() => { });
                 }
                 return res;
             }).catch(() => caches.match('./index.html'));
